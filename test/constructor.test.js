@@ -1,4 +1,5 @@
-const { expect } = require('chai');
+const assert = require('node:assert/strict');
+const { afterEach, beforeEach, describe, it } = require('node:test');
 
 const { GladysIntegration, GladysApiError, WEBSOCKET_MESSAGE_TYPES } = require('../lib');
 
@@ -8,20 +9,20 @@ describe('new GladysIntegration()', () => {
   const savedEnv = {};
 
   beforeEach(() => {
-    ENV_VARS.forEach((name) => {
+    for (const name of ENV_VARS) {
       savedEnv[name] = process.env[name];
       delete process.env[name];
-    });
+    }
   });
 
   afterEach(() => {
-    ENV_VARS.forEach((name) => {
+    for (const name of ENV_VARS) {
       if (savedEnv[name] === undefined) {
         delete process.env[name];
       } else {
         process.env[name] = savedEnv[name];
       }
-    });
+    }
   });
 
   it('should accept explicit options', () => {
@@ -30,12 +31,12 @@ describe('new GladysIntegration()', () => {
       token: 'my-token',
       selector: 'ext-demo',
     });
-    expect(gladys.hostApiUrl).to.equal('http://172.30.0.1:80');
-    expect(gladys.token).to.equal('my-token');
-    expect(gladys.selector).to.equal('ext-demo');
-    expect(gladys.devices).to.deep.equal([]);
-    expect(gladys.config).to.deep.equal({});
-    expect(gladys.connected).to.equal(false);
+    assert.equal(gladys.hostApiUrl, 'http://172.30.0.1:80');
+    assert.equal(gladys.token, 'my-token');
+    assert.equal(gladys.selector, 'ext-demo');
+    assert.deepEqual(gladys.devices, []);
+    assert.deepEqual(gladys.config, {});
+    assert.equal(gladys.connected, false);
   });
 
   it('should read options from container env vars by default', () => {
@@ -43,9 +44,9 @@ describe('new GladysIntegration()', () => {
     process.env.GLADYS_INTEGRATION_TOKEN = 'env-token';
     process.env.GLADYS_INTEGRATION_SELECTOR = 'ext-env';
     const gladys = new GladysIntegration();
-    expect(gladys.hostApiUrl).to.equal('http://172.30.0.1:80');
-    expect(gladys.token).to.equal('env-token');
-    expect(gladys.selector).to.equal('ext-env');
+    assert.equal(gladys.hostApiUrl, 'http://172.30.0.1:80');
+    assert.equal(gladys.token, 'env-token');
+    assert.equal(gladys.selector, 'ext-env');
   });
 
   it('should strip the trailing slash of hostApiUrl and derive the WS URL', () => {
@@ -54,50 +55,50 @@ describe('new GladysIntegration()', () => {
       token: 't',
       selector: 's',
     });
-    expect(gladys.hostApiUrl).to.equal('http://172.30.0.1:80');
-    expect(gladys.wsUrl).to.equal('ws://172.30.0.1:80');
+    assert.equal(gladys.hostApiUrl, 'http://172.30.0.1:80');
+    assert.equal(gladys.wsUrl, 'ws://172.30.0.1:80');
   });
 
   it('should derive a wss:// URL from an https:// host API URL', () => {
     const gladys = new GladysIntegration({ hostApiUrl: 'https://gladys.local', token: 't', selector: 's' });
-    expect(gladys.wsUrl).to.equal('wss://gladys.local');
+    assert.equal(gladys.wsUrl, 'wss://gladys.local');
   });
 
   it('should throw when hostApiUrl is missing', () => {
-    expect(() => new GladysIntegration({ token: 't', selector: 's' })).to.throw(/hostApiUrl/);
+    assert.throws(() => new GladysIntegration({ token: 't', selector: 's' }), /hostApiUrl/);
   });
 
   it('should throw when token is missing', () => {
-    expect(() => new GladysIntegration({ hostApiUrl: 'http://h', selector: 's' })).to.throw(/token/);
+    assert.throws(() => new GladysIntegration({ hostApiUrl: 'http://h', selector: 's' }), /token/);
   });
 
   it('should throw when selector is missing', () => {
-    expect(() => new GladysIntegration({ hostApiUrl: 'http://h', token: 't' })).to.throw(/selector/);
+    assert.throws(() => new GladysIntegration({ hostApiUrl: 'http://h', token: 't' }), /selector/);
   });
 });
 
 describe('gladys.externalId(suffix)', () => {
   it('should build a prefixed external id', () => {
     const gladys = new GladysIntegration({ hostApiUrl: 'http://h', token: 't', selector: 'ext-demo' });
-    expect(gladys.externalId('switch:binary')).to.equal('ext:ext-demo:switch:binary');
+    assert.equal(gladys.externalId('switch:binary'), 'ext:ext-demo:switch:binary');
   });
 });
 
 describe('module exports', () => {
   it('should expose GladysIntegration, GladysApiError and WEBSOCKET_MESSAGE_TYPES', () => {
-    expect(GladysIntegration).to.be.a('function');
-    expect(GladysApiError).to.be.a('function');
-    expect(WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.DEVICE_SET_VALUE).to.equal(
+    assert.equal(typeof GladysIntegration, 'function');
+    assert.equal(typeof GladysApiError, 'function');
+    assert.equal(
+      WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.DEVICE_SET_VALUE,
       'external-integration.device.set-value',
     );
   });
 
   it('should expose the same API through the ESM wrapper', async () => {
-    // eslint-disable-next-line import/extensions
     const esm = await import('../esm/index.mjs');
-    expect(esm.GladysIntegration).to.equal(GladysIntegration);
-    expect(esm.GladysApiError).to.equal(GladysApiError);
-    expect(esm.WEBSOCKET_MESSAGE_TYPES).to.equal(WEBSOCKET_MESSAGE_TYPES);
-    expect(esm.default.GladysIntegration).to.equal(GladysIntegration);
+    assert.equal(esm.GladysIntegration, GladysIntegration);
+    assert.equal(esm.GladysApiError, GladysApiError);
+    assert.equal(esm.WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_TYPES);
+    assert.equal(esm.default.GladysIntegration, GladysIntegration);
   });
 });

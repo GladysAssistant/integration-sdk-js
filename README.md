@@ -128,11 +128,15 @@ polling loop while Gladys is unreachable.
 
 ## Development
 
+The toolchain is intentionally modern and dependency-light: the native `node:test` runner with
+`node:assert/strict` (no test framework), ESLint 10 (flat config) and Prettier 3 run as separate checks, c8 for
+coverage thresholds.
+
 ```bash
 npm install
-npm test              # unit tests against a fake Gladys server
-npm run coverage      # tests + coverage thresholds
-npm run lint          # ESLint (airbnb-base + prettier)
+npm test              # node:test unit tests against a fake Gladys server
+npm run coverage      # tests + coverage thresholds (c8)
+npm run lint          # ESLint 10, flat config
 npm run prettier-check
 npm run check-types   # TypeScript typings compile check
 ```

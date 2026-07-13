@@ -1,5 +1,5 @@
-/* eslint-disable no-console */
-const { expect } = require('chai');
+const assert = require('node:assert/strict');
+const { afterEach, beforeEach, describe, it } = require('node:test');
 
 const { debug, NAMESPACE } = require('../lib/debug');
 
@@ -27,30 +27,30 @@ describe('debug logging', () => {
   it('should not log anything by default (stdout/stderr belong to the integration)', () => {
     delete process.env.DEBUG;
     debug('hidden message');
-    expect(logged).to.deep.equal([]);
+    assert.deepEqual(logged, []);
   });
 
   it('should log on stderr when DEBUG=gladys-integration-sdk', () => {
     process.env.DEBUG = NAMESPACE;
     debug('visible message', 42);
-    expect(logged).to.deep.equal([[`[${NAMESPACE}]`, 'visible message', 42]]);
+    assert.deepEqual(logged, [[`[${NAMESPACE}]`, 'visible message', 42]]);
   });
 
   it('should log when DEBUG contains the namespace among others', () => {
     process.env.DEBUG = `other,${NAMESPACE}:*`;
     debug('also visible');
-    expect(logged).to.have.lengthOf(1);
+    assert.equal(logged.length, 1);
   });
 
   it('should log when DEBUG=*', () => {
     process.env.DEBUG = '*';
     debug('wildcard');
-    expect(logged).to.have.lengthOf(1);
+    assert.equal(logged.length, 1);
   });
 
   it('should not log for an unrelated DEBUG namespace', () => {
     process.env.DEBUG = 'express:*';
     debug('hidden');
-    expect(logged).to.deep.equal([]);
+    assert.deepEqual(logged, []);
   });
 });

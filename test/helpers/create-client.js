@@ -22,4 +22,16 @@ const once = (emitter, event) =>
     emitter.once(event, resolve);
   });
 
-module.exports = { createClient, once };
+/**
+ * Promise.withResolvers() ponyfill (the SDK supports Node.js 20, where it is
+ * not available yet).
+ */
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+};
+
+module.exports = { createClient, deferred, once };

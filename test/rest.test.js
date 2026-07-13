@@ -1,4 +1,5 @@
-const { expect } = require('chai');
+const assert = require('node:assert/strict');
+const { afterEach, beforeEach, describe, it } = require('node:test');
 
 const { GladysApiError } = require('../lib');
 const { FakeGladysServer } = require('./helpers/fake-gladys-server');
@@ -40,11 +41,11 @@ describe('host API REST methods', () => {
         },
       ];
       const response = await gladys.publishDiscoveredDevices(devices);
-      expect(response).to.deep.equal({ success: true, count: 1 });
+      assert.deepEqual(response, { success: true, count: 1 });
       const requests = server.getRequests('POST', '/discovered_device');
-      expect(requests).to.have.lengthOf(1);
-      expect(requests[0].body).to.deep.equal({ devices });
-      expect(requests[0].authorization).to.equal(`Bearer ${server.token}`);
+      assert.equal(requests.length, 1);
+      assert.deepEqual(requests[0].body, { devices });
+      assert.equal(requests[0].authorization, `Bearer ${server.token}`);
     });
   });
 
@@ -52,17 +53,17 @@ describe('host API REST methods', () => {
     it('should GET /device and refresh gladys.devices', async () => {
       server.devices = [{ external_id: 'ext:ext-demo:switch', name: 'Switch' }];
       const devices = await gladys.getDevices();
-      expect(devices).to.deep.equal(server.devices);
-      expect(gladys.devices).to.deep.equal(server.devices);
+      assert.deepEqual(devices, server.devices);
+      assert.deepEqual(gladys.devices, server.devices);
     });
   });
 
   describe('gladys.publishState(featureExternalId, value)', () => {
     it('should publish a numeric state', async () => {
       const response = await gladys.publishState('ext:ext-demo:sensor:temperature', 21.5);
-      expect(response).to.deep.equal({ success: true });
+      assert.deepEqual(response, { success: true });
       const requests = server.getRequests('POST', '/state');
-      expect(requests[0].body).to.deep.equal({
+      assert.deepEqual(requests[0].body, {
         states: [{ device_feature_external_id: 'ext:ext-demo:sensor:temperature', state: 21.5 }],
       });
     });
@@ -70,7 +71,7 @@ describe('host API REST methods', () => {
     it('should publish a text state with { text }', async () => {
       await gladys.publishState('ext:ext-demo:cam:text', { text: 'hello' });
       const requests = server.getRequests('POST', '/state');
-      expect(requests[0].body).to.deep.equal({
+      assert.deepEqual(requests[0].body, {
         states: [{ device_feature_external_id: 'ext:ext-demo:cam:text', text: 'hello' }],
       });
     });
@@ -81,7 +82,7 @@ describe('host API REST methods', () => {
         created_at: '2026-07-12T10:00:00.000Z',
       });
       const requests = server.getRequests('POST', '/state');
-      expect(requests[0].body).to.deep.equal({
+      assert.deepEqual(requests[0].body, {
         states: [
           {
             device_feature_external_id: 'ext:ext-demo:sensor:temperature',
@@ -100,17 +101,12 @@ describe('host API REST methods', () => {
         { device_feature_external_id: 'ext:ext-demo:b', text: 'on' },
       ];
       const response = await gladys.publishStates(states);
-      expect(response).to.deep.equal({ success: true });
-      expect(server.getRequests('POST', '/state')[0].body).to.deep.equal({ states });
+      assert.deepEqual(response, { success: true });
+      assert.deepEqual(server.getRequests('POST', '/state')[0].body, { states });
     });
 
     it('should throw when states is not an array', async () => {
-      try {
-        await gladys.publishStates({ state: 1 });
-        throw new Error('should have thrown');
-      } catch (e) {
-        expect(e.message).to.match(/must be an array/);
-      }
+      await assert.rejects(gladys.publishStates({ state: 1 }), /must be an array/);
     });
 
     it('should throw when the batch exceeds 100 states', async () => {
@@ -118,13 +114,8 @@ describe('host API REST methods', () => {
         device_feature_external_id: `ext:ext-demo:${i}`,
         state: i,
       }));
-      try {
-        await gladys.publishStates(states);
-        throw new Error('should have thrown');
-      } catch (e) {
-        expect(e.message).to.match(/maximum 100 states/);
-      }
-      expect(server.getRequests('POST', '/state')).to.have.lengthOf(0);
+      await assert.rejects(gladys.publishStates(states), /maximum 100 states/);
+      assert.equal(server.getRequests('POST', '/state').length, 0);
     });
 
     it('should accept a batch of exactly 100 states', async () => {
@@ -133,7 +124,7 @@ describe('host API REST methods', () => {
         state: i,
       }));
       const response = await gladys.publishStates(states);
-      expect(response).to.deep.equal({ success: true });
+      assert.deepEqual(response, { success: true });
     });
   });
 
@@ -141,24 +132,24 @@ describe('host API REST methods', () => {
     it('should GET /config and refresh gladys.config', async () => {
       server.config = { latitude: 48.85, api_key: 's3cr3t' };
       const config = await gladys.getConfig();
-      expect(config).to.deep.equal(server.config);
-      expect(gladys.config).to.deep.equal(server.config);
+      assert.deepEqual(config, server.config);
+      assert.deepEqual(gladys.config, server.config);
     });
 
     it('should POST /config with a partial merge', async () => {
       server.config = { latitude: 48.85 };
       const response = await gladys.setConfig({ pairing_state: 'done' });
-      expect(response).to.deep.equal({ success: true });
-      expect(server.getRequests('POST', '/config')[0].body).to.deep.equal({ config: { pairing_state: 'done' } });
-      expect(server.config).to.deep.equal({ latitude: 48.85, pairing_state: 'done' });
+      assert.deepEqual(response, { success: true });
+      assert.deepEqual(server.getRequests('POST', '/config')[0].body, { config: { pairing_state: 'done' } });
+      assert.deepEqual(server.config, { latitude: 48.85, pairing_state: 'done' });
     });
   });
 
   describe('gladys.getStatus()', () => {
     it('should GET /status', async () => {
       const status = await gladys.getStatus();
-      expect(status.gladys_version).to.equal('4.62.0');
-      expect(status.service.selector).to.equal('ext-demo');
+      assert.equal(status.gladys_version, '4.62.0');
+      assert.equal(status.service.selector, 'ext-demo');
     });
   });
 
@@ -169,40 +160,34 @@ describe('host API REST methods', () => {
         code: 'TOO_MANY_REQUESTS',
         message: 'Rate limit of 300 states/minute exceeded',
       });
-      try {
-        await gladys.publishState('ext:ext-demo:a', 1);
-        throw new Error('should have thrown');
-      } catch (e) {
-        expect(e).to.be.instanceOf(GladysApiError);
-        expect(e.name).to.equal('GladysApiError');
-        expect(e.status).to.equal(429);
-        expect(e.code).to.equal('TOO_MANY_REQUESTS');
-        expect(e.message).to.equal('Rate limit of 300 states/minute exceeded');
-      }
+      await assert.rejects(gladys.publishState('ext:ext-demo:a', 1), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.name, 'GladysApiError');
+        assert.equal(error.status, 429);
+        assert.equal(error.code, 'TOO_MANY_REQUESTS');
+        assert.equal(error.message, 'Rate limit of 300 states/minute exceeded');
+        return true;
+      });
     });
 
     it('should throw a 401 GladysApiError with an invalid token', async () => {
       const badClient = createClient(server, { token: 'wrong' });
-      try {
-        await badClient.getDevices();
-        throw new Error('should have thrown');
-      } catch (e) {
-        expect(e).to.be.instanceOf(GladysApiError);
-        expect(e.status).to.equal(401);
-        expect(e.code).to.equal('UNAUTHORIZED');
-      }
+      await assert.rejects(badClient.getDevices(), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 401);
+        assert.equal(error.code, 'UNAUTHORIZED');
+        return true;
+      });
     });
 
     it('should fall back to the HTTP status when the error body is not JSON', async () => {
       server.forceResponse('GET', '/status', 502, 'Bad Gateway (html)');
-      try {
-        await gladys.getStatus();
-        throw new Error('should have thrown');
-      } catch (e) {
-        expect(e).to.be.instanceOf(GladysApiError);
-        expect(e.status).to.equal(502);
-        expect(e.code).to.equal('UNKNOWN_ERROR');
-      }
+      await assert.rejects(gladys.getStatus(), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 502);
+        assert.equal(error.code, 'UNKNOWN_ERROR');
+        return true;
+      });
     });
   });
 });

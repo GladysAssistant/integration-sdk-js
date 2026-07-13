@@ -21,12 +21,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "lint": "eslint lib test",
+    "lint": "eslint .",
     "prettier-check": "prettier --check '**/*.{js,mjs,ts,json,md,yml}'",
     "prettier": "prettier --write '**/*.{js,mjs,ts,json,md,yml}'",
     "check-types": "tsc -p tsconfig.json",
-    "test": "mocha",
-    "coverage": "c8 mocha"
+    "test": "node --test test/*.test.js",
+    "coverage": "c8 node --test test/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -49,17 +49,14 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "@types/ws": "^8.5.13",
-    "c8": "^10.1.2",
-    "chai": "^4.5.0",
-    "eslint": "^8.57.1",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-prettier": "^5.2.1",
-    "mocha": "^10.8.2",
-    "prettier": "^3.4.2",
-    "typescript": "^5.7.2"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "@types/ws": "^8.18.1",
+    "c8": "^11.0.0",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.5",
+    "typescript": "^7.0.2"
   }
 }

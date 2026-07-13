@@ -1,4 +1,5 @@
-const { expect } = require('chai');
+const assert = require('node:assert/strict');
+const { afterEach, beforeEach, describe, it } = require('node:test');
 
 const { computeBackoffDelay } = require('../lib/backoff');
 const { FakeGladysServer } = require('./helpers/fake-gladys-server');
@@ -22,7 +23,7 @@ describe('reconnection', () => {
   it('should reconnect after a network drop, re-authenticate and resynchronize', async () => {
     gladys = createClient(server);
     await gladys.connect();
-    expect(server.getRequests('GET', '/device')).to.have.lengthOf(1);
+    assert.equal(server.getRequests('GET', '/device').length, 1);
 
     server.devices = [{ external_id: 'ext:ext-demo:switch' }, { external_id: 'ext:ext-demo:sensor' }];
     server.config = { latitude: 43.6 };
@@ -30,15 +31,15 @@ describe('reconnection', () => {
     const reconnected = once(gladys, 'connected');
     server.killConnections();
     await disconnected;
-    expect(gladys.connected).to.equal(false);
+    assert.equal(gladys.connected, false);
     await reconnected;
 
-    expect(gladys.connected).to.equal(true);
+    assert.equal(gladys.connected, true);
     // The resynchronization ran again on reconnection.
-    expect(server.getRequests('GET', '/device')).to.have.lengthOf(2);
-    expect(server.getRequests('GET', '/config')).to.have.lengthOf(2);
-    expect(gladys.devices).to.have.lengthOf(2);
-    expect(gladys.config).to.deep.equal({ latitude: 43.6 });
+    assert.equal(server.getRequests('GET', '/device').length, 2);
+    assert.equal(server.getRequests('GET', '/config').length, 2);
+    assert.equal(gladys.devices.length, 2);
+    assert.deepEqual(gladys.config, { latitude: 43.6 });
   });
 
   it('should reset the backoff attempt counter after a successful reconnection', async () => {
@@ -46,20 +47,20 @@ describe('reconnection', () => {
     await gladys.connect();
     server.killConnections();
     await once(gladys, 'connected');
-    expect(gladys.reconnectAttempts).to.equal(0);
+    assert.equal(gladys.reconnectAttempts, 0);
   });
 });
 
 describe('computeBackoffDelay(attempt, baseDelay, maxDelay)', () => {
   it('should double the delay at each attempt: min(1s * 2^n, 60s)', () => {
-    expect(computeBackoffDelay(0, 1000, 60000)).to.equal(1000);
-    expect(computeBackoffDelay(1, 1000, 60000)).to.equal(2000);
-    expect(computeBackoffDelay(2, 1000, 60000)).to.equal(4000);
-    expect(computeBackoffDelay(5, 1000, 60000)).to.equal(32000);
+    assert.equal(computeBackoffDelay(0, 1000, 60000), 1000);
+    assert.equal(computeBackoffDelay(1, 1000, 60000), 2000);
+    assert.equal(computeBackoffDelay(2, 1000, 60000), 4000);
+    assert.equal(computeBackoffDelay(5, 1000, 60000), 32000);
   });
 
   it('should cap the delay at maxDelay', () => {
-    expect(computeBackoffDelay(6, 1000, 60000)).to.equal(60000);
-    expect(computeBackoffDelay(20, 1000, 60000)).to.equal(60000);
+    assert.equal(computeBackoffDelay(6, 1000, 60000), 60000);
+    assert.equal(computeBackoffDelay(20, 1000, 60000), 60000);
   });
 });
