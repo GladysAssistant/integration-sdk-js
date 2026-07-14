@@ -138,8 +138,9 @@ export declare class GladysIntegration extends EventEmitter {
    * Open the WebSocket, authenticate, resynchronize (GET /device + GET /config),
    * then resolve. Reconnects automatically for life with exponential backoff
    * min(1s * 2^n, 60s); every reconnection re-authenticates and resynchronizes.
-   * Exception: a token refused by Gladys (close code 4000) stops reconnection
-   * for good — a refused token is revoked and never becomes valid again.
+   * A token refused by Gladys (close code 4000) keeps the loop armed but jumps
+   * straight to the max delay — the refusal may be transient. connect() rejects
+   * when the refusal happens during the initial connection.
    */
   connect(): Promise<void>;
 

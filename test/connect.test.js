@@ -36,7 +36,7 @@ describe('gladys.connect()', () => {
     assert.equal(server.getRequests('GET', '/config').length, 1);
   });
 
-  it('should reject when Gladys refuses the token on the first connection', async () => {
+  it('should reject when Gladys refuses the token on the first connection, but keep the loop armed', async () => {
     gladys = createClient(server, { token: 'wrong-token' });
     await assert.rejects(gladys.connect(), (error) => {
       assert.match(error.message, /authentication refused/);
@@ -44,6 +44,12 @@ describe('gladys.connect()', () => {
       return true;
     });
     assert.equal(gladys.connected, false);
+    // The reconnection loop stays armed for life: if the refusal was
+    // transient (token validation error at boot), the SDK recovers alone.
+    assert.equal(gladys.shouldReconnect, true);
+    server.token = 'wrong-token';
+    await once(gladys, 'connected');
+    assert.equal(gladys.connected, true);
   });
 
   it('should keep retrying when the resynchronization fails, and resolve once it succeeds', async () => {
@@ -72,20 +78,25 @@ describe('gladys.connect()', () => {
     assert.equal(gladys.connected, true);
   });
 
-  it('should stop reconnecting for good when the token is refused after a successful connection', async () => {
+  it('should keep reconnecting at the max delay after a token refusal, and recover once it validates again', async () => {
     gladys = createClient(server);
     await gladys.connect();
-    // The supervisor rotates the token (token_version bump): the old one is
-    // now refused on reconnection (close code 4000).
-    server.token = 'rotated-token';
+    // Transient token validation failure (e.g. DB busy at boot): Gladys
+    // closes with 4000 on reconnection.
+    const validToken = server.token;
+    server.token = 'temporarily-refused';
     server.killConnections();
     await once(gladys, 'disconnected');
-    // Let the reconnection attempt hit the 4000 close.
+    // Let at least one reconnection attempt hit the 4000 close.
     await delay(200);
     assert.equal(gladys.connected, false);
-    assert.equal(gladys.shouldReconnect, false);
-    assert.equal(gladys.reconnectTimer, null);
-    assert.equal(server.sockets.length, 0);
+    // The loop is still armed (a live container that stops reconnecting
+    // would never be recreated by the supervisor).
+    assert.equal(gladys.shouldReconnect, true);
+    // The failure ends: the SDK reconnects on its own.
+    server.token = validToken;
+    await once(gladys, 'connected');
+    assert.equal(gladys.connected, true);
   });
 
   it('should support disconnect() then connect() again', async () => {
