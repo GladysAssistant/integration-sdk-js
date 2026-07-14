@@ -22,6 +22,8 @@ class FakeGladysServer {
     };
     // Map of "METHOD path" -> { status, body } forced responses.
     this.forcedResponses = new Map();
+    // Set of "METHOD path" routes that never answer (timeout testing).
+    this.hangingRoutes = new Set();
     // Connected & authenticated integration sockets.
     this.sockets = [];
     // Messages received on the WebSocket, as { type, payload }.
@@ -116,6 +118,10 @@ class FakeGladysServer {
         res.writeHead(status, { 'content-type': contentType });
         res.end(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
       };
+      if (this.hangingRoutes.has(`${req.method} ${path}`)) {
+        // Never answer: the client is expected to abort on its own timeout.
+        return;
+      }
       const forced = this.forcedResponses.get(`${req.method} ${path}`);
       if (forced) {
         respond(forced.status, forced.body);

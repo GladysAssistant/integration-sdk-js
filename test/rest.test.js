@@ -180,6 +180,15 @@ describe('host API REST methods', () => {
       });
     });
 
+    it('should abort a request hanging past requestTimeout', async () => {
+      server.hangingRoutes.add('GET /status');
+      const impatientClient = createClient(server, { requestTimeout: 100 });
+      await assert.rejects(impatientClient.getStatus(), (error) => {
+        assert.equal(error.name, 'TimeoutError');
+        return true;
+      });
+    });
+
     it('should fall back to the HTTP status when the error body is not JSON', async () => {
       server.forceResponse('GET', '/status', 502, 'Bad Gateway (html)');
       await assert.rejects(gladys.getStatus(), (error) => {

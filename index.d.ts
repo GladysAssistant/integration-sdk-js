@@ -17,6 +17,8 @@ export interface GladysIntegrationOptions {
   reconnectBaseDelay?: number;
   /** Reconnection delay cap in milliseconds. Default: 60000. */
   reconnectMaxDelay?: number;
+  /** Host API request timeout in milliseconds. Default: 15000. */
+  requestTimeout?: number;
 }
 
 /** A device feature, in the standard Gladys format. */
@@ -136,6 +138,8 @@ export declare class GladysIntegration extends EventEmitter {
    * Open the WebSocket, authenticate, resynchronize (GET /device + GET /config),
    * then resolve. Reconnects automatically for life with exponential backoff
    * min(1s * 2^n, 60s); every reconnection re-authenticates and resynchronizes.
+   * Exception: a token refused by Gladys (close code 4000) stops reconnection
+   * for good — a refused token is revoked and never becomes valid again.
    */
   connect(): Promise<void>;
 

@@ -28,7 +28,9 @@ npm install @gladysassistant/integration-sdk
 ## Usage
 
 ```js
-const { GladysIntegration } = require('@gladysassistant/integration-sdk');
+import { GladysIntegration } from '@gladysassistant/integration-sdk';
+// CommonJS works too: const { GladysIntegration } = require('@gladysassistant/integration-sdk');
+// (then wrap the `await` calls in an async function — CJS has no top-level await)
 
 // Every option is read from the container env vars by default
 // (GLADYS_HOST_API_URL, GLADYS_INTEGRATION_TOKEN, GLADYS_INTEGRATION_SELECTOR);
@@ -81,21 +83,24 @@ await gladys.connect(); // resolves once authenticated
 
 Throws immediately when a value is missing (neither option nor env var).
 
+Advanced options: `reconnectBaseDelay` (default 1000 ms), `reconnectMaxDelay` (default 60000 ms) and
+`requestTimeout` (default 15000 ms — host API requests are aborted past this delay).
+
 ### Methods
 
 All methods return Promises; host API errors are thrown as `GladysApiError { status, code, message }`.
 
-| Method                                     | Contract                                                                                                                                                                                                                       |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes |
-| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                          |
-| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                        |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one)                                                                                                                                                  |
-| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                   |
-| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                |
-| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                             |
-| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                               |
-| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                    |
+| Method                                     | Contract                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. Exception: a token refused by Gladys (close code 4000) stops reconnection for good (a refused token is revoked — the container gets recreated with a fresh one) |
+| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                           |
+| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                         |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one)                                                                                                                                                                                                                                                                                                                   |
+| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                    |
+| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                 |
+| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                              |
+| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                |
+| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                     |
 
 ### Handlers
 

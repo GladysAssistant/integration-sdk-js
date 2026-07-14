@@ -5,7 +5,9 @@ import globals from 'globals';
 
 export default defineConfig([
   {
-    ignores: ['node_modules/', 'coverage/'],
+    // TypeScript files (typings + compile-time checks) are validated by tsc
+    // (`npm run check-types`), not by ESLint.
+    ignores: ['node_modules/', 'coverage/', '**/*.ts'],
   },
   {
     files: ['**/*.js', '**/*.mjs'],
@@ -21,7 +23,6 @@ export default defineConfig([
       'no-var': 'error',
       'prefer-const': 'error',
       'prefer-template': 'error',
-      'no-return-await': 'error',
       'no-else-return': 'error',
       'object-shorthand': 'error',
       'no-shadow': 'error',

@@ -72,6 +72,22 @@ describe('gladys.connect()', () => {
     assert.equal(gladys.connected, true);
   });
 
+  it('should stop reconnecting for good when the token is refused after a successful connection', async () => {
+    gladys = createClient(server);
+    await gladys.connect();
+    // The supervisor rotates the token (token_version bump): the old one is
+    // now refused on reconnection (close code 4000).
+    server.token = 'rotated-token';
+    server.killConnections();
+    await once(gladys, 'disconnected');
+    // Let the reconnection attempt hit the 4000 close.
+    await delay(200);
+    assert.equal(gladys.connected, false);
+    assert.equal(gladys.shouldReconnect, false);
+    assert.equal(gladys.reconnectTimer, null);
+    assert.equal(server.sockets.length, 0);
+  });
+
   it('should support disconnect() then connect() again', async () => {
     gladys = createClient(server);
     await gladys.connect();
