@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "paths": {
+      "@gladysassistant/integration-sdk": ["./index.d.ts"]
+    }
+  },
+  "include": ["index.d.ts", "test/types/**/*.ts"]
+}
