@@ -38,14 +38,18 @@ import { GladysIntegration } from '@gladysassistant/integration-sdk';
 const gladys = new GladysIntegration();
 
 gladys.onScanRequest(async () => {
+  // `external_id` must be unique and stable per device: build the suffix from an
+  // identifier that comes from the brand/hardware (serial, MAC, Zigbee address…),
+  // never from a generic word like "switch" alone.
+  const deviceId = '0x00158d0001a2b3c4'; // e.g. the device address reported by the brand
   await gladys.publishDiscoveredDevices([
     {
       name: 'Virtual switch',
-      external_id: gladys.externalId('switch'),
+      external_id: gladys.externalId(`switch:${deviceId}`),
       features: [
         {
           name: 'On/Off',
-          external_id: gladys.externalId('switch:binary'),
+          external_id: gladys.externalId(`switch:${deviceId}:binary`),
           category: 'switch',
           type: 'binary',
           min: 0,
