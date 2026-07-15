@@ -10,7 +10,8 @@ on:
 
 permissions:
   contents: read
-  # Required to publish with npm provenance (signed build attestation).
+  # Required for npm trusted publishing (OIDC): the token is exchanged at
+  # publish time, so no long-lived NPM_TOKEN secret is needed.
   id-token: write
 
 jobs:
@@ -27,6 +28,9 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -49,7 +53,7 @@ jobs:
             exit 1
           fi
 
+      # No token: authentication and provenance are handled automatically by
+      # npm trusted publishing via the OIDC id-token above.
       - name: Publish
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
