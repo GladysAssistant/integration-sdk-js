@@ -3,11 +3,18 @@
  * Mirrors the example of contract C.8.
  */
 import {
+  createLogger,
   Device,
+  DEVICE_FEATURE_CATEGORIES,
+  DEVICE_FEATURE_TYPES,
+  DEVICE_FEATURE_UNITS,
+  DeviceExternalIds,
   DeviceFeature,
   GladysApiError,
   GladysIntegration,
   IntegrationConfig,
+  logger,
+  Logger,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
@@ -69,6 +76,22 @@ const main = async (): Promise<void> => {
   const parts: [number, string, string] = [error.status, error.code, error.message];
 
   const authType: string = WEBSOCKET_MESSAGE_TYPES.AUTHENTICATE.INTEGRATION_REQUEST;
+
+  logger.info('connected', status.gladys_version);
+  const namedLogger: Logger = createLogger({ name: 'weather-station', level: 'debug' });
+  namedLogger.child('poll').debug('polling');
+
+  const ids: DeviceExternalIds = gladys.externalIds('plug', '0x00158d0001a2b3c4');
+  const featureId: string = ids.feature('power');
+
+  const category: 'temperature-sensor' = DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR;
+  const featureType: 'binary' = DEVICE_FEATURE_TYPES.SWITCH.BINARY;
+  const unit: 'celsius' = DEVICE_FEATURE_UNITS.CELSIUS;
+
+  gladys.handleShutdown(async (signal: 'SIGTERM' | 'SIGINT') => {
+    logger.info('stopping on', signal);
+  });
+  void [ids.device, featureId, category, featureType, unit];
 
   await gladys.disconnect();
 
