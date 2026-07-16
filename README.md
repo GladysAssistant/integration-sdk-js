@@ -28,7 +28,12 @@ npm install @gladysassistant/integration-sdk
 ## Usage
 
 ```js
-import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
+import {
+  GladysIntegration,
+  DEVICE_FEATURE_CATEGORIES,
+  DEVICE_FEATURE_TYPES,
+  logger,
+} from '@gladysassistant/integration-sdk';
 // CommonJS works too: const { GladysIntegration } = require('@gladysassistant/integration-sdk');
 // (then wrap the `await` calls in an async function — CJS has no top-level await)
 
@@ -38,20 +43,20 @@ import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 const gladys = new GladysIntegration();
 
 gladys.onScanRequest(async () => {
-  // `external_id` must be unique and stable per device: build the suffix from an
+  // External ids must be unique and stable per device: build them from an
   // identifier that comes from the brand/hardware (serial, MAC, Zigbee address…),
   // never from a generic word like "switch" alone.
-  const deviceId = '0x00158d0001a2b3c4'; // e.g. the device address reported by the brand
+  const ids = gladys.externalIds('switch', '0x00158d0001a2b3c4');
   await gladys.publishDiscoveredDevices([
     {
       name: 'Virtual switch',
-      external_id: gladys.externalId(`switch:${deviceId}`),
+      external_id: ids.device,
       features: [
         {
           name: 'On/Off',
-          external_id: gladys.externalId(`switch:${deviceId}:binary`),
-          category: 'switch',
-          type: 'binary',
+          external_id: ids.feature('binary'),
+          category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+          type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
           min: 0,
           max: 1,
           read_only: false,
@@ -71,6 +76,8 @@ gladys.onSetValue(async (device, feature, value) => {
 gladys.onConfigUpdated(async (config) => {
   logger.info('New config', config); // stdout → docker logs, level set by LOG_LEVEL
 });
+
+gladys.handleShutdown(); // SIGTERM/SIGINT → clean disconnect → exit(0)
 
 await gladys.connect(); // resolves once authenticated
 ```
@@ -99,6 +106,8 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. A token refused by Gladys (close code 4000) keeps the loop armed but jumps straight to the max delay — the refusal may be transient, and the integration must never go zombie |
 | `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                                         |
 | `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                       |
+| `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                             |
+| `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                              |
 | `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one)                                                                                                                                                                                                                                                                                                                                 |
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                  |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                               |
@@ -119,6 +128,20 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 | `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices` |
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                        |
 | `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                  |
+
+### Device constants
+
+The SDK exports the canonical category / type / unit strings understood by Gladys — a verbatim mirror of
+`server/utils/constants.js` in the Gladys repository — so integrations never have to hand-copy (and typo) them.
+The TypeScript typings declare every value as a string literal, so your editor autocompletes them.
+
+```js
+import {
+  DEVICE_FEATURE_CATEGORIES, // { TEMPERATURE_SENSOR: 'temperature-sensor', SWITCH: 'switch', … }
+  DEVICE_FEATURE_TYPES, // grouped by category: { SWITCH: { BINARY: 'binary', POWER: 'power', … }, … }
+  DEVICE_FEATURE_UNITS, // { CELSIUS: 'celsius', PERCENT: 'percent', WATT: 'watt', … }
+} from '@gladysassistant/integration-sdk';
+```
 
 ### Logger
 
