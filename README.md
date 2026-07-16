@@ -161,7 +161,7 @@ log.child('poll').debug('refreshing'); // [2026-…Z] [DEBUG] [weather-station:p
 ```
 
 The level is read from the `LOG_LEVEL` environment variable (`debug` | `info` | `warn` | `error` | `silent`,
-default: `info`; an unknown value falls back to `info`), or pinned with `createLogger({ level })` — handy to silence
+case-insensitive, default: `info`; an unknown value falls back to `info`), or pinned with `createLogger({ level })` — handy to silence
 an integration's own logs in its tests. This logger carries the **integration's** logs only: the SDK itself stays
 silent (see the behaviour guarantees below).
 

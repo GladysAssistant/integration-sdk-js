@@ -80,6 +80,12 @@ describe('logger', () => {
     assert.deepEqual(stderr, []);
   });
 
+  it('should read LOG_LEVEL case-insensitively', () => {
+    process.env.LOG_LEVEL = 'DEBUG';
+    logger.debug('visible');
+    assert.equal(stdout.length, 1);
+  });
+
   it('should fall back to info for an unknown LOG_LEVEL', () => {
     process.env.LOG_LEVEL = 'verbose';
     logger.debug('hidden');
