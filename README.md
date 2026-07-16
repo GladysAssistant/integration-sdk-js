@@ -28,7 +28,7 @@ npm install @gladysassistant/integration-sdk
 ## Usage
 
 ```js
-import { GladysIntegration } from '@gladysassistant/integration-sdk';
+import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 // CommonJS works too: const { GladysIntegration } = require('@gladysassistant/integration-sdk');
 // (then wrap the `await` calls in an async function — CJS has no top-level await)
 
@@ -69,7 +69,7 @@ gladys.onSetValue(async (device, feature, value) => {
 });
 
 gladys.onConfigUpdated(async (config) => {
-  console.log('New config', config); // stdout → docker logs
+  logger.info('New config', config); // stdout → docker logs, level set by LOG_LEVEL
 });
 
 await gladys.connect(); // resolves once authenticated
@@ -120,6 +120,28 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                        |
 | `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                  |
 
+### Logger
+
+The SDK ships the standard integration logger, so every integration does not have to reimplement one. Integration
+logs are captured by the Gladys supervisor through the container stdout/stderr: `debug`/`info` write to stdout,
+`warn`/`error` to stderr, each line prefixed with an ISO timestamp and the level.
+
+```js
+import { logger, createLogger } from '@gladysassistant/integration-sdk';
+
+logger.info('Starting the integration...');
+logger.error('Something failed', err);
+
+// Optional: named loggers for the modules of the integration.
+const log = createLogger({ name: 'weather-station' });
+log.child('poll').debug('refreshing'); // [2026-…Z] [DEBUG] [weather-station:poll] refreshing
+```
+
+The level is read from the `LOG_LEVEL` environment variable (`debug` | `info` | `warn` | `error` | `silent`,
+default: `info`; an unknown value falls back to `info`), or pinned with `createLogger({ level })` — handy to silence
+an integration's own logs in its tests. This logger carries the **integration's** logs only: the SDK itself stays
+silent (see the behaviour guarantees below).
+
 ### Local state & lifecycle
 
 The SDK keeps `gladys.devices` (array), `gladys.config` (object) and `gladys.connected` (boolean) up to date —
@@ -130,8 +152,8 @@ polling loop while Gladys is unreachable.
 ### Behaviour guarantees
 
 - Responds to WebSocket protocol pings (native to the `ws` library).
-- Never logs anything by default (stdout/stderr belong to the integration); set `DEBUG=gladys-integration-sdk` for
-  SDK debug logs on stderr.
+- Never logs anything by itself (stdout/stderr belong to the integration — the exported `logger` only writes when
+  the integration calls it); set `DEBUG=gladys-integration-sdk` for SDK debug logs on stderr.
 - Persists nothing on disk: everything resynchronizes, `/data` stays fully owned by the integration.
 - Unknown message types are ignored silently (forward compatibility).
 

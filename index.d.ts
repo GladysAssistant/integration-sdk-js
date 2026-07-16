@@ -99,6 +99,37 @@ export declare class GladysApiError extends Error {
   constructor(status: number, code: string, message: string);
 }
 
+/** Levels accepted by the logger (LOG_LEVEL env var or `level` option). */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
+
+/** Options of createLogger. */
+export interface LoggerOptions {
+  /** Prefix added to every line, e.g. the module name. */
+  name?: string;
+  /** Pinned level, bypassing the LOG_LEVEL env var. */
+  level?: LogLevel;
+}
+
+/**
+ * Standard integration logger. debug/info write to stdout, warn/error to
+ * stderr — both are captured by the Gladys supervisor (docker logs). The level
+ * comes from the LOG_LEVEL env var (default: info) unless pinned.
+ */
+export interface Logger {
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  /** Derive a logger with a nested name: `parent:child`. */
+  child(name: string): Logger;
+}
+
+/** Create a logger (see the Logger interface). */
+export declare function createLogger(options?: LoggerOptions): Logger;
+
+/** Shared default logger (no name, level from LOG_LEVEL). */
+export declare const logger: Logger;
+
 /** WebSocket message types of the integration protocol (contract C.4). */
 export declare const WEBSOCKET_MESSAGE_TYPES: {
   AUTHENTICATE: { INTEGRATION_REQUEST: string };

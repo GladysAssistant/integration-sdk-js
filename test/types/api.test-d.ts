@@ -3,11 +3,14 @@
  * Mirrors the example of contract C.8.
  */
 import {
+  createLogger,
   Device,
   DeviceFeature,
   GladysApiError,
   GladysIntegration,
   IntegrationConfig,
+  logger,
+  Logger,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
@@ -69,6 +72,10 @@ const main = async (): Promise<void> => {
   const parts: [number, string, string] = [error.status, error.code, error.message];
 
   const authType: string = WEBSOCKET_MESSAGE_TYPES.AUTHENTICATE.INTEGRATION_REQUEST;
+
+  logger.info('connected', status.gladys_version);
+  const namedLogger: Logger = createLogger({ name: 'weather-station', level: 'debug' });
+  namedLogger.child('poll').debug('polling');
 
   await gladys.disconnect();
 
