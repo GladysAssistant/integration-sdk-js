@@ -94,8 +94,10 @@ await gladys.connect(); // resolves once authenticated
 
 Throws immediately when a value is missing (neither option nor env var).
 
-Advanced options: `reconnectBaseDelay` (default 1000 ms), `reconnectMaxDelay` (default 60000 ms) and
-`requestTimeout` (default 15000 ms — host API requests are aborted past this delay).
+Advanced options: `reconnectBaseDelay` (default 1000 ms), `reconnectMaxDelay` (default 60000 ms),
+`requestTimeout` (default 15000 ms — host API requests are aborted past this delay) and `logger` (the logger used
+for the connection lifecycle logs, default `createLogger({ name: 'gladys-sdk' })` — pass
+`createLogger({ level: 'silent' })` to silence the SDK entirely).
 
 ### Methods
 
@@ -162,8 +164,13 @@ log.child('poll').debug('refreshing'); // [2026-…Z] [DEBUG] [weather-station:p
 
 The level is read from the `LOG_LEVEL` environment variable (`debug` | `info` | `warn` | `error` | `silent`,
 case-insensitive, default: `info`; an unknown value falls back to `info`), or pinned with `createLogger({ level })` — handy to silence
-an integration's own logs in its tests. This logger carries the **integration's** logs only: the SDK itself stays
-silent (see the behaviour guarantees below).
+an integration's own logs in its tests.
+
+The SDK itself logs its **connection lifecycle** through this logger (under the `gladys-sdk` name), so connectivity
+problems are diagnosable from `docker logs` without any configuration: successful (re)connections (`info`), lost
+connections and reconnection attempts (`warn`), WebSocket errors, refused tokens and failed resynchronizations
+(`error`). The `logger` constructor option replaces it — pass `createLogger({ level: 'silent' })` to keep the SDK
+silent, or your own logger to route the lines elsewhere.
 
 ### Local state & lifecycle
 
@@ -175,8 +182,8 @@ polling loop while Gladys is unreachable.
 ### Behaviour guarantees
 
 - Responds to WebSocket protocol pings (native to the `ws` library).
-- Never logs anything by itself (stdout/stderr belong to the integration — the exported `logger` only writes when
-  the integration calls it); set `DEBUG=gladys-integration-sdk` for SDK debug logs on stderr.
+- Logs the connection lifecycle only (see the Logger section) — silenceable with the `logger` option; everything
+  else stays silent unless `DEBUG=gladys-integration-sdk` enables the SDK debug logs on stderr.
 - Persists nothing on disk: everything resynchronizes, `/data` stays fully owned by the integration.
 - Unknown message types are ignored silently (forward compatibility).
 

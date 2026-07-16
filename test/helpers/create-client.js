@@ -1,8 +1,9 @@
-const { GladysIntegration } = require('../../lib');
+const { GladysIntegration, createLogger } = require('../../lib');
 
 /**
  * Build a client bound to a FakeGladysServer, with fast reconnection delays so
- * tests stay quick.
+ * tests stay quick, and the SDK connection logs silenced so the test output
+ * stays clean (connection-logs.test.js covers them with a recording logger).
  */
 const createClient = (server, options = {}) =>
   new GladysIntegration({
@@ -11,6 +12,7 @@ const createClient = (server, options = {}) =>
     selector: 'ext-demo',
     reconnectBaseDelay: 10,
     reconnectMaxDelay: 100,
+    logger: createLogger({ level: 'silent' }),
     ...options,
   });
 
