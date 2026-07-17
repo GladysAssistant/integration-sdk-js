@@ -19,6 +19,13 @@ export interface GladysIntegrationOptions {
   reconnectMaxDelay?: number;
   /** Host API request timeout in milliseconds. Default: 15000. */
   requestTimeout?: number;
+  /**
+   * Logger used for the connection lifecycle logs (connections,
+   * disconnections, reconnection attempts, authentication failures).
+   * Default: `createLogger({ name: 'gladys-sdk' })`. Pass
+   * `createLogger({ level: 'silent' })` to silence the SDK entirely.
+   */
+  logger?: Logger;
 }
 
 /** A device feature, in the standard Gladys format. */
@@ -693,6 +700,8 @@ export declare class GladysIntegration extends EventEmitter {
   readonly selector: string;
   /** Host API base URL, without trailing slash. */
   readonly hostApiUrl: string;
+  /** Logger used for the connection lifecycle logs. */
+  readonly logger: Logger;
   /** Devices of the integration created by the user (refreshed on every (re)connection). */
   devices: Device[];
   /** Configuration values (refreshed on every (re)connection and on config-updated). */
