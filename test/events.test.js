@@ -66,10 +66,21 @@ describe('lifecycle events (device-created/updated/deleted, config-updated)', ()
     assert.deepEqual(gladys.config, { latitude: 43.6, unit: 'celsius' });
   });
 
+  it('should call onHardwareUpdated with the containers of the hardware-updated event', async () => {
+    const { promise: called, resolve } = deferred();
+    gladys.onHardwareUpdated(resolve);
+    await gladys.connect();
+    const containers = [{ name: 'frigate', devices: [{ class: 'coral-usb', granted: true, available: true }] }];
+    server.send(EXTERNAL_INTEGRATION.HARDWARE_UPDATED, { containers });
+    const received = await called;
+    assert.deepEqual(received, containers);
+  });
+
   it('should ignore lifecycle events silently when no handler is registered', async () => {
     await gladys.connect();
     server.send(EXTERNAL_INTEGRATION.DEVICE_CREATED, { device: { external_id: 'ext:ext-demo:x' } });
     server.send(EXTERNAL_INTEGRATION.CONFIG_UPDATED, { config: { a: 1 } });
+    server.send(EXTERNAL_INTEGRATION.HARDWARE_UPDATED, { containers: [] });
     await delay(20);
     assert.equal(gladys.connected, true);
     assert.deepEqual(gladys.devices, [{ external_id: 'ext:ext-demo:x' }]);

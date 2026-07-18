@@ -97,6 +97,47 @@ export interface PublishDiscoveredDevicesResponse extends SuccessResponse {
 }
 
 /**
+ * Multi-language message, keyed by language code. The `en` key is the
+ * fallback shown when the user language is missing.
+ */
+export type MultiLanguageMessage = { en: string } & Record<string, string>;
+
+/** A published port of a sub-container, with the host port assigned by Gladys. */
+export interface ContainerPort {
+  container_port: number;
+  host_port: number;
+}
+
+/** State of one requested hardware class of a sub-container (contract C.3). */
+export interface ContainerHardwareDevice {
+  /** Hardware class name, e.g. 'coral-usb', 'gpu'. */
+  class: string;
+  /** Whether the user granted the class. */
+  granted: boolean;
+  /** Whether the hardware is detected on the host. */
+  available: boolean;
+}
+
+/** A sub-container declared in the manifest, as returned by GET /container. */
+export interface IntegrationContainer {
+  name: string;
+  /** Docker status, e.g. 'running' | 'stopped'. */
+  status: string;
+  /** Desired state kept by the supervisor, e.g. 'running' | 'stopped'. */
+  desired: string;
+  started_at: string | null;
+  ports: ContainerPort[];
+  devices?: ContainerHardwareDevice[];
+  [key: string]: unknown;
+}
+
+/** Payload entry of the hardware-updated event (contract C.4). */
+export interface HardwareUpdatedContainer {
+  name: string;
+  devices: ContainerHardwareDevice[];
+}
+
+/**
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
  */
@@ -685,6 +726,9 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     DEVICE_UPDATED: string;
     DEVICE_DELETED: string;
     CONFIG_UPDATED: string;
+    HARDWARE_UPDATED: string;
+    OAUTH_GET_AUTHORIZE_URL: string;
+    OAUTH_CALLBACK: string;
     HEARTBEAT: string;
   };
 };
@@ -767,6 +811,33 @@ export declare class GladysIntegration extends EventEmitter {
   /** Fetch the Gladys version and the integration service status. */
   getStatus(): Promise<IntegrationStatus>;
 
+  /**
+   * Publish the application-level connection status of the integration, shown
+   * in the Configuration screen (e.g. "token expired, please reconnect"). A
+   * cloud integration can be RUNNING and still disconnected from its
+   * third-party service — without this channel it would be silently broken.
+   */
+  setConnectionStatus(connected: boolean, message?: MultiLanguageMessage): Promise<SuccessResponse>;
+
+  /**
+   * Fetch the sub-containers declared in the manifest: Docker status, desired
+   * state, assigned host ports and granted/available hardware classes.
+   */
+  getContainers(): Promise<IntegrationContainer[]>;
+
+  /**
+   * Create (if needed) and start a sub-container declared in the manifest —
+   * typically after generating its config files in `/data`. The optional `env`
+   * carries runtime-computed values, merged over the manifest env.
+   */
+  startContainer(name: string, options?: { env?: Record<string, string> }): Promise<SuccessResponse>;
+
+  /** Stop a sub-container; the supervisor will not restart it. */
+  stopContainer(name: string): Promise<SuccessResponse>;
+
+  /** Restart a sub-container, e.g. after rewriting its config through `/data`. */
+  restartContainer(name: string): Promise<SuccessResponse>;
+
   /** Handler called when the user actions a device feature (auto-acked). */
   onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;
 
@@ -787,6 +858,31 @@ export declare class GladysIntegration extends EventEmitter {
 
   /** Handler called when the user saves the configuration form. */
   onConfigUpdated(callback: (config: IntegrationConfig) => void | Promise<void>): void;
+
+  /**
+   * Handler called when the user changes the hardware grants: the affected
+   * sub-containers have been recreated — regenerate their configuration and
+   * (re)start what is needed.
+   */
+  onHardwareUpdated(callback: (containers: HardwareUpdatedContainer[]) => void | Promise<void>): void;
+
+  /**
+   * Handler called when the user clicks "Connect" on an `oauth2` config field
+   * (auto-acked): build and return the provider authorization URL — client_id
+   * from the config, scopes, a `state` you generate and remember. The resolved
+   * string is acked as `data.authorize_url`.
+   */
+  onOAuthAuthorizeUrl(callback: (key: string, redirectUri: string) => string | Promise<string>): void;
+
+  /**
+   * Handler called when the OAuth2 provider redirects back (auto-acked):
+   * verify `state`, exchange the code for the tokens, store them through
+   * `setConfig` (keys outside the config_schema), then
+   * `setConnectionStatus(true)`.
+   */
+  onOAuthCallback(
+    callback: (key: string, params: { code: string; state: string; redirectUri: string }) => void | Promise<void>,
+  ): void;
 
   on(event: 'connected' | 'disconnected', listener: () => void): this;
   once(event: 'connected' | 'disconnected', listener: () => void): this;

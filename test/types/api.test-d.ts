@@ -12,7 +12,9 @@ import {
   DeviceFeature,
   GladysApiError,
   GladysIntegration,
+  HardwareUpdatedContainer,
   IntegrationConfig,
+  IntegrationContainer,
   logger,
   Logger,
   WEBSOCKET_MESSAGE_TYPES,
@@ -59,6 +61,21 @@ const main = async (): Promise<void> => {
     await gladys.setConfig({ last_seen_config: JSON.stringify(config) });
   });
 
+  gladys.onHardwareUpdated(async (containers: HardwareUpdatedContainer[]) => {
+    const granted: boolean = containers[0].devices[0].granted;
+    void granted;
+  });
+
+  gladys.onOAuthAuthorizeUrl(
+    async (key: string, redirectUri: string) =>
+      `https://provider.example/authorize?key=${key}&redirect_uri=${redirectUri}`,
+  );
+
+  gladys.onOAuthCallback(async (key: string, params: { code: string; state: string; redirectUri: string }) => {
+    await gladys.setConfig({ [`${key}_code`]: params.code });
+    await gladys.setConnectionStatus(true);
+  });
+
   gladys.on('connected', () => {});
   gladys.on('disconnected', () => {});
 
@@ -71,6 +88,16 @@ const main = async (): Promise<void> => {
 
   await gladys.publishState(gladys.externalId('sensor:text'), { text: 'hello' });
   await gladys.publishStates([{ device_feature_external_id: gladys.externalId('sensor:temperature'), state: 20 }]);
+
+  await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
+  const containers: IntegrationContainer[] = await gladys.getContainers();
+  const hostPort: number | undefined = containers[0]?.ports[0]?.host_port;
+  await gladys.startContainer('mqtt', { env: { MQTT_PASSWORD: 's3cr3t' } });
+  await gladys.startContainer('mqtt');
+  await gladys.stopContainer('mqtt');
+  await gladys.restartContainer('frigate');
+  const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
+  void [hostPort, oauthType];
 
   const error = new GladysApiError(401, 'UNAUTHORIZED', 'Invalid token');
   const parts: [number, string, string] = [error.status, error.code, error.message];
