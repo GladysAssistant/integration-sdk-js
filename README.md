@@ -121,6 +121,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                        |
 | `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                     |
 | `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                     |
+| `scanNetwork(type, { timeoutSeconds }?)`   | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job                                                                                                                                                                                                        |
 
 ### Handlers
 
@@ -191,6 +192,50 @@ const detector = coral.granted && coral.available ? 'edgetpu' : 'cpu'; // adapt 
 
 When the user changes the hardware grants, the affected sub-containers are recreated and `onHardwareUpdated` fires:
 regenerate the configs and (re)start what is needed.
+
+### Mediated network discovery
+
+Integration containers run on a bridge network: LAN **broadcast, mDNS and SSDP traffic never reaches them** (only
+outgoing unicast crosses the NAT). Local discovery (Tuya-style UDP announcements, Hue mDNS…) therefore goes through
+the core, which runs on the host network: **the core captures (network position), the integration interprets
+(protocol knowledge)** — the core never parses anything.
+
+Declare what may be captured in the manifest `network_discovery` field (shown to the user on the install screen,
+like `containers` and hardware classes — undeclared captures are rejected with a 403):
+
+```json
+"network_discovery": [
+  { "type": "udp-broadcast", "ports": [6666, 6667, 7000] },
+  { "type": "mdns", "service": "_hue._tcp" }
+]
+```
+
+Then scan on demand (typically from `onScanRequest`), parse the raw results yourself, join the devices through
+unicast, and publish them:
+
+```js
+gladys.onScanRequest(async () => {
+  // Tuya-style: the devices announce themselves in UDP broadcast on the LAN.
+  const announcements = await gladys.scanNetwork('udp-broadcast', { timeoutSeconds: 10 });
+  const devices = announcements.map(({ source_ip, payload_base64 }) => {
+    const announcement = decodeTuyaPayload(Buffer.from(payload_base64, 'base64')); // your protocol code
+    const ids = gladys.externalIds('plug', announcement.gwId);
+    return {
+      name: `Tuya ${announcement.gwId}`,
+      external_id: ids.device,
+      // Keep the IP to reach the device in unicast afterwards (unicast crosses the NAT).
+      params: [{ name: 'IP_ADDRESS', value: source_ip }],
+      features: [],
+    };
+  });
+  await gladys.publishDiscoveredDevices(devices);
+});
+```
+
+Raw result shapes: `udp-broadcast` → `[{ source_ip, source_port, payload_base64 }]` (one entry per received
+datagram), `mdns` → `[{ name, host, addresses, port, txt }]`, `ssdp` → the raw headers per responder. Scans are
+synchronous and bounded (`timeoutSeconds` 1–30); requires a Gladys with mediated-discovery support (check the
+`gladys_version` range of your manifest).
 
 ### Publishing states efficiently
 

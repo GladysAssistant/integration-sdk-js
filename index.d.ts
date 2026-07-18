@@ -137,6 +137,34 @@ export interface HardwareUpdatedContainer {
   devices: ContainerHardwareDevice[];
 }
 
+/** Capture types of the manifest `network_discovery` field (contract B.16). */
+export type NetworkDiscoveryType = 'udp-broadcast' | 'mdns' | 'ssdp';
+
+/** Options of a mediated network scan. */
+export interface NetworkScanOptions {
+  /** Scan duration in seconds (1-30). */
+  timeoutSeconds?: number;
+}
+
+/** Raw result of a 'udp-broadcast' mediated scan: one received datagram. */
+export interface UdpBroadcastScanResult {
+  source_ip: string;
+  source_port: number;
+  payload_base64: string;
+}
+
+/** Raw result of an 'mdns' mediated scan: one browsed service instance. */
+export interface MdnsScanResult {
+  name: string;
+  host: string;
+  addresses: string[];
+  port: number;
+  txt: Record<string, string>;
+}
+
+/** Raw result of an 'ssdp' mediated scan: the raw headers of one responder. */
+export type SsdpScanResult = Record<string, string>;
+
 /**
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
@@ -837,6 +865,18 @@ export declare class GladysIntegration extends EventEmitter {
 
   /** Restart a sub-container, e.g. after rewriting its config through `/data`. */
   restartContainer(name: string): Promise<SuccessResponse>;
+
+  /**
+   * Run an on-demand mediated network scan: the core — on the host network —
+   * captures what the manifest `network_discovery` field declares (bridge
+   * containers never receive LAN broadcast/mDNS/SSDP) and returns the RAW
+   * results. Parse them yourself, join the devices through unicast, then
+   * publish them with `publishDiscoveredDevices`. Undeclared type/ports → 403.
+   */
+  scanNetwork(type: 'udp-broadcast', options?: NetworkScanOptions): Promise<UdpBroadcastScanResult[]>;
+  scanNetwork(type: 'mdns', options?: NetworkScanOptions): Promise<MdnsScanResult[]>;
+  scanNetwork(type: 'ssdp', options?: NetworkScanOptions): Promise<SsdpScanResult[]>;
+  scanNetwork(type: string, options?: NetworkScanOptions): Promise<unknown[]>;
 
   /** Handler called when the user actions a device feature (auto-acked). */
   onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;

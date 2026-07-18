@@ -17,6 +17,7 @@ class FakeGladysServer {
     this.devices = [];
     this.config = {};
     this.containers = [];
+    this.networkScanResults = [];
     this.status = {
       gladys_version: '4.62.0',
       service: { id: 'service-id', selector: 'ext-demo', status: 'RUNNING', version: '1.0.0' },
@@ -165,6 +166,9 @@ class FakeGladysServer {
           break;
         case 'GET /container':
           respond(200, { containers: this.containers });
+          break;
+        case 'POST /network_discovery/scan':
+          respond(200, this.networkScanResults);
           break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });

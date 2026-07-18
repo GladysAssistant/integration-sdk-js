@@ -17,6 +17,8 @@ import {
   IntegrationContainer,
   logger,
   Logger,
+  MdnsScanResult,
+  UdpBroadcastScanResult,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
@@ -98,6 +100,13 @@ const main = async (): Promise<void> => {
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
   void [hostPort, oauthType];
+
+  const announcements: UdpBroadcastScanResult[] = await gladys.scanNetwork('udp-broadcast', { timeoutSeconds: 10 });
+  const payload: string = announcements[0].payload_base64;
+  const services: MdnsScanResult[] = await gladys.scanNetwork('mdns');
+  const txt: Record<string, string> = services[0].txt;
+  const headers = await gladys.scanNetwork('ssdp', { timeoutSeconds: 5 });
+  void [payload, txt, headers];
 
   const error = new GladysApiError(401, 'UNAUTHORIZED', 'Invalid token');
   const parts: [number, string, string] = [error.status, error.code, error.message];
