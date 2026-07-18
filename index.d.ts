@@ -202,6 +202,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly SIGNAL: 'signal';
   readonly SIREN: 'siren';
   readonly SISMIC_SENSOR: 'sismic-sensor';
+  readonly SOLAR_BATTERY: 'solar-battery';
   readonly SMOKE_SENSOR: 'smoke-sensor';
   readonly SOIL_MOISTURE_SENSOR: 'soil-moisture-sensor';
   readonly SURFACE: 'surface';
@@ -387,6 +388,11 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly DAILY_PRODUCTION_REVENUE: 'daily-production-revenue';
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
+  };
+  readonly SOLAR_BATTERY: {
+    readonly BATTERY_LEVEL: 'battery-level';
+    readonly BATTERY_INPUT_POWER: 'battery-input-power';
+    readonly BATTERY_OUTPUT_POWER: 'battery-output-power';
   };
   readonly TELEINFORMATION: {
     readonly BINARY: 'binary';

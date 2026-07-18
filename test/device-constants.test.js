@@ -9,6 +9,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR, 'motion-sensor');
     assert.equal(DEVICE_FEATURE_CATEGORIES.SWITCH, 'switch');
     assert.equal(DEVICE_FEATURE_CATEGORIES.LIGHT, 'light');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.SOLAR_BATTERY, 'solar-battery');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -16,6 +17,9 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS, 'brightness');
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.SOLAR_BATTERY.BATTERY_LEVEL, 'battery-level');
+    assert.equal(DEVICE_FEATURE_TYPES.SOLAR_BATTERY.BATTERY_INPUT_POWER, 'battery-input-power');
+    assert.equal(DEVICE_FEATURE_TYPES.SOLAR_BATTERY.BATTERY_OUTPUT_POWER, 'battery-output-power');
   });
 
   it('should expose the canonical unit strings', () => {
