@@ -3,6 +3,7 @@
  * Mirrors the example of contract C.8.
  */
 import {
+  ActionFields,
   createLogger,
   Device,
   DEVICE_FEATURE_CATEGORIES,
@@ -77,6 +78,9 @@ const main = async (): Promise<void> => {
     await gladys.setConfig({ [`${key}_code`]: params.code });
     await gladys.setConnectionStatus(true);
   });
+
+  gladys.onAction('detect_protocol', async (fields: ActionFields) => `Detected on ${String(fields.ip)}`);
+  gladys.onAction('test_connection', async () => ({ en: 'Connected!', fr: 'Connecté !' }));
 
   gladys.on('connected', () => {});
   gladys.on('disconnected', () => {});

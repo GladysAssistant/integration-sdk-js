@@ -110,7 +110,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                       |
 | `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                             |
 | `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                              |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one)                                                                                                                                                                                                                                                                                                                                 |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` in Gladys (a LAN IP that changed in DHCP…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                        |
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                  |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                               |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                            |
@@ -130,16 +130,47 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                                                                                                                      |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                             |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                    |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                            |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                   |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                             |
-| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                      |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember) |
-| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`    |
+| Handler                                                               | Callback signature                                                                                                                                                                                                         |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                       |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                               |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                      |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                         |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                    |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                       |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s) |
+
+### Manifest actions
+
+For on-demand operations with a visible result — connection test, identify, re-pairing, protocol detection… —
+declare `actions` in the manifest: each one is rendered as a button (with an optional mini-form, `fields`) in the
+Configuration screen. The Tuya-style example: detect the protocol version of a device whose IP was typed by hand
+because the UDP scan did not find it — a long operation, hence the per-action `timeout_seconds` (5–120 s, default 30) replacing the standard 5 s ack delay:
+
+```json
+"actions": [
+  {
+    "key": "detect_protocol",
+    "label": { "en": "Detect protocol version", "fr": "Détecter la version de protocole" },
+    "timeout_seconds": 30,
+    "fields": [
+      { "key": "ip", "type": "string", "label": { "en": "Device IP" }, "required": true }
+    ]
+  }
+]
+```
+
+```js
+gladys.onAction('detect_protocol', async (fields) => {
+  const version = await tryProtocolVersions(fields.ip); // your protocol code, can take ~15 s
+  return { en: `Protocol ${version} detected`, fr: `Protocole ${version} détecté` };
+});
+```
+
+The resolved value — a string or a multi-language object — is displayed under the button; throwing displays the
+error message instead.
 
 ### OAuth2 cloud services
 

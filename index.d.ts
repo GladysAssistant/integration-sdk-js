@@ -165,6 +165,9 @@ export interface MdnsScanResult {
 /** Raw result of an 'ssdp' mediated scan: the raw headers of one responder. */
 export type SsdpScanResult = Record<string, string>;
 
+/** Values of the `fields` mini-form of a manifest action (contract C.1). */
+export type ActionFields = Record<string, unknown>;
+
 /**
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
@@ -757,6 +760,7 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     HARDWARE_UPDATED: string;
     OAUTH_GET_AUTHORIZE_URL: string;
     OAUTH_CALLBACK: string;
+    ACTION_RUN: string;
     HEARTBEAT: string;
   };
 };
@@ -922,6 +926,21 @@ export declare class GladysIntegration extends EventEmitter {
    */
   onOAuthCallback(
     callback: (key: string, params: { code: string; state: string; redirectUri: string }) => void | Promise<void>,
+  ): void;
+
+  /**
+   * Handler of ONE action declared in the manifest `actions` field, run when
+   * the user clicks its button in the Configuration screen (auto-acked).
+   * Registered per action `key`; receives the values of the action `fields`
+   * mini-form. The resolved value (string or multi-language object) is acked
+   * back as `data.message` and shown under the button. The ack is awaited
+   * under the action's declared `timeout_seconds` (not the standard 5 s).
+   */
+  onAction(
+    key: string,
+    callback: (
+      fields: ActionFields,
+    ) => string | MultiLanguageMessage | void | Promise<string | MultiLanguageMessage | void>,
   ): void;
 
   on(event: 'connected' | 'disconnected', listener: () => void): this;
