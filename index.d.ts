@@ -467,6 +467,7 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly THIRTY_MINUTES_CONSUMPTION_COST: 'thirty-minutes-consumption-cost';
   };
   readonly ENERGY_PRODUCTION_SENSOR: {
+    readonly POWER: 'power';
     readonly INDEX: 'index';
     readonly DAILY_PRODUCTION: 'daily-production';
     readonly DAILY_PRODUCTION_REVENUE: 'daily-production-revenue';

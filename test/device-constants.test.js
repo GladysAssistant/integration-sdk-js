@@ -16,6 +16,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS, 'brightness');
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.ENERGY_PRODUCTION_SENSOR.POWER, 'power');
   });
 
   it('should expose the canonical unit strings', () => {
