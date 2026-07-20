@@ -116,6 +116,9 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                            |
 | `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                    |
 | `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable' }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices                                                                                                                                                                               |
+| `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline                                                                 |
+| `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                |
+| `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                             |
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                              |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                   |
 | `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                     |
@@ -144,6 +147,7 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                    |
 | `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                       |
 | `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s) |
+| `onSendMessage(cb)`                                                   | `(contactId, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) to the contact in the external channel                                                                                |
 
 ### Manifest actions
 
@@ -207,6 +211,50 @@ the UI instead of a silently broken integration:
 ```js
 await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
 ```
+
+### Communication channels
+
+Messaging channels (Telegram-like bots — Matrix, Signal, WhatsApp…) are integrations of manifest
+`type: "communication"`: no Devices/Discovery screens, the user links their account from the Configuration screen
+of the Gladys UI, and the integration exchanges messages through the host API. Three building blocks:
+
+- **Linking** — the consent step. The user clicks "Link my account" in the Gladys UI, which shows a short code
+  (single use, 15 minutes TTL); they send it to the bot in the external channel, and the integration relays it
+  with `linkContact(code, contactId, contactName?)`. From then on the contact speaks with the authority of the
+  linked user (trigger scenes, ask about the house…) — which is exactly why the code flow exists. The user can
+  revoke the link from the same screen at any time.
+- **Incoming** — `publishMessage(contactId, text)`: Gladys resolves the contact to the linked user and routes the
+  message to the brain and the chat history; the reply comes back through `onSendMessage`. An unknown contact is
+  rejected with a 404: catch it and answer "account not linked" with the linking instructions.
+- **Outgoing** — `onSendMessage`: replies of the brain and notifications forwarded to a linked user (scenes,
+  alerts…), delivered by the integration in the external channel.
+
+```js
+gladys.onSendMessage(async (contactId, message) => {
+  await bot.sendMessage(contactId, message.text); // message.file: attached image (base64) or null
+});
+
+bot.on('message', async (chatId, text) => {
+  if (looksLikeLinkCode(text)) {
+    const user = await gladys.linkContact(text.trim(), chatId, await bot.getChatName(chatId));
+    await bot.sendMessage(chatId, `Linked to ${user.first_name}!`);
+    return;
+  }
+  try {
+    await gladys.publishMessage(chatId, text);
+  } catch (e) {
+    if (e.status === 404) {
+      await bot.sendMessage(chatId, 'Account not linked: get a code from the Gladys UI and send it to me.');
+    } else {
+      throw e;
+    }
+  }
+});
+```
+
+Texts are limited to 4096 characters. `getContacts()` lists the linked contacts (with their linked Gladys user),
+e.g. to resynchronize the channel-side state after a restart. Requires a Gladys with communication-integrations
+support (check the `gladys_version` range of your manifest).
 
 ### Camera images
 

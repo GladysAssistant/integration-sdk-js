@@ -19,9 +19,12 @@ import {
   HardwareUpdatedContainer,
   IntegrationConfig,
   IntegrationContainer,
+  LinkedContact,
+  LinkedUser,
   logger,
   Logger,
   MdnsScanResult,
+  OutgoingMessage,
   UdpBroadcastScanResult,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
@@ -87,6 +90,11 @@ const main = async (): Promise<void> => {
   gladys.onAction('detect_protocol', async (fields: ActionFields) => `Detected on ${String(fields.ip)}`);
   gladys.onAction('test_connection', async () => ({ en: 'Connected!', fr: 'Connecté !' }));
 
+  gladys.onSendMessage(async (contactId: string, message: OutgoingMessage) => {
+    const line: string = `${contactId}: ${message.text} ${message.file ?? ''}`;
+    void line;
+  });
+
   gladys.on('connected', () => {});
   gladys.on('disconnected', () => {});
 
@@ -116,6 +124,13 @@ const main = async (): Promise<void> => {
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
   void [hostPort, oauthType];
+
+  await gladys.publishMessage('12345', 'Turn on the light');
+  await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });
+  const linkedUser: LinkedUser = await gladys.linkContact('AB23CD45', '12345', 'John');
+  const contacts: LinkedContact[] = await gladys.getContacts();
+  const messageType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.MESSAGE_SEND;
+  void [linkedUser.first_name, contacts[0]?.contact_id, messageType];
 
   const announcements: UdpBroadcastScanResult[] = await gladys.scanNetwork('udp-broadcast', { timeoutSeconds: 10 });
   const payload: string = announcements[0].payload_base64;

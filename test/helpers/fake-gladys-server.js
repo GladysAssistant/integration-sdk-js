@@ -18,6 +18,8 @@ class FakeGladysServer {
     this.config = {};
     this.containers = [];
     this.networkScanResults = [];
+    this.contacts = [];
+    this.linkedUser = { selector: 'john', first_name: 'John', language: 'en' };
     this.status = {
       gladys_version: '4.62.0',
       service: { id: 'service-id', selector: 'ext-demo', status: 'RUNNING', version: '1.0.0' },
@@ -175,6 +177,15 @@ class FakeGladysServer {
           break;
         case 'POST /network_discovery/scan':
           respond(200, this.networkScanResults);
+          break;
+        case 'POST /message':
+          respond(200, { success: true });
+          break;
+        case 'POST /contact/link':
+          respond(200, { user: this.linkedUser });
+          break;
+        case 'GET /contact':
+          respond(200, this.contacts);
           break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });
