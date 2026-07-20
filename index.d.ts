@@ -396,32 +396,10 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly CHARGE_POWER: 'charge-power';
     // Power flowing out of the battery, W/kW (>= 0)
     readonly DISCHARGE_POWER: 'discharge-power';
-    // PV input power, W/kW (>= 0)
-    readonly SOLAR_INPUT_POWER: 'solar-input-power';
-    // Total power delivered to home/load (PV-direct + discharge), W/kW (>= 0)
-    readonly OUTPUT_POWER: 'output-power';
-    // Grid import power, W/kW (>= 0)
-    readonly GRID_INPUT_POWER: 'grid-input-power';
-    // Grid export power, W/kW (>= 0)
-    readonly GRID_OUTPUT_POWER: 'grid-output-power';
-    // Signed grid exchange (import positive, export negative), W/kW
-    readonly GRID_POWER: 'grid-power';
-    // Off-grid / backup output power, W/kW (>= 0)
-    readonly OFF_GRID_POWER: 'off-grid-power';
     // Cumulative energy charged, kWh
     readonly CHARGE_ENERGY: 'charge-energy';
     // Cumulative energy discharged, kWh
     readonly DISCHARGE_ENERGY: 'discharge-energy';
-    // Cumulative solar energy, kWh
-    readonly SOLAR_ENERGY: 'solar-energy';
-    // Cumulative energy delivered to home, kWh
-    readonly OUTPUT_ENERGY: 'output-energy';
-    // Cumulative grid import energy, kWh
-    readonly GRID_INPUT_ENERGY: 'grid-input-energy';
-    // Cumulative grid export energy, kWh
-    readonly GRID_OUTPUT_ENERGY: 'grid-output-energy';
-    // Cumulative off-grid output energy, kWh
-    readonly OFF_GRID_ENERGY: 'off-grid-energy';
     // Currently available stored energy (instantaneous), kWh
     readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
   };

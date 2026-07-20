@@ -20,19 +20,8 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_LEVEL, 'battery-level');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_POWER, 'discharge-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.SOLAR_INPUT_POWER, 'solar-input-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.OUTPUT_POWER, 'output-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_INPUT_POWER, 'grid-input-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_OUTPUT_POWER, 'grid-output-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_POWER, 'grid-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.OFF_GRID_POWER, 'off-grid-power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_ENERGY, 'charge-energy');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_ENERGY, 'discharge-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.SOLAR_ENERGY, 'solar-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.OUTPUT_ENERGY, 'output-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_INPUT_ENERGY, 'grid-input-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_OUTPUT_ENERGY, 'grid-output-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.OFF_GRID_ENERGY, 'off-grid-energy');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_ENERGY_REMAINING, 'battery-energy-remaining');
   });
 
