@@ -89,7 +89,7 @@ describe('lifecycle events (device-created/updated/deleted, config-updated)', ()
 
   it('should ignore unknown message types silently (forward compatibility)', async () => {
     await gladys.connect();
-    server.send('external-integration.camera.get-image', { message_id: 'msg-9' });
+    server.send('external-integration.camera.start-streaming', { message_id: 'msg-9' });
     server.sendRaw('this is not JSON');
     await delay(20);
     assert.equal(gladys.connected, true);

@@ -7,6 +7,7 @@ export const {
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
   DEVICE_FEATURE_UNITS,
+  DEVICE_TRANSPORTS,
   createLogger,
   logger,
 } = sdk;

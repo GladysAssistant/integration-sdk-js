@@ -161,6 +161,12 @@ class FakeGladysServer {
         case 'POST /state':
           respond(200, { success: true });
           break;
+        case 'POST /camera/image':
+          respond(200, { success: true });
+          break;
+        case 'POST /device/transport':
+          respond(200, { success: true });
+          break;
         case 'POST /connection_status':
           respond(200, { success: true });
           break;

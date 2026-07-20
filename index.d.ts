@@ -169,6 +169,19 @@ export type SsdpScanResult = Record<string, string>;
 export type ActionFields = Record<string, unknown>;
 
 /**
+ * Per-device transport status (contract C.3), stored in the reserved
+ * GLADYS_TRANSPORT device param and rendered as a badge in the Gladys UI.
+ */
+export type DeviceTransport = 'local' | 'cloud' | 'unreachable';
+
+/** One entry of the publishTransports batch. */
+export interface DeviceTransportEntry {
+  /** The device external_id. */
+  external_id: string;
+  transport: DeviceTransport;
+}
+
+/**
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
  */
@@ -761,8 +774,16 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     OAUTH_GET_AUTHORIZE_URL: string;
     OAUTH_CALLBACK: string;
     ACTION_RUN: string;
+    CAMERA_GET_IMAGE: string;
     HEARTBEAT: string;
   };
+};
+
+/** Values of the per-device transport status (contract C.3). */
+export declare const DEVICE_TRANSPORTS: {
+  readonly LOCAL: 'local';
+  readonly CLOUD: 'cloud';
+  readonly UNREACHABLE: 'unreachable';
 };
 
 /**
@@ -834,6 +855,24 @@ export declare class GladysIntegration extends EventEmitter {
   /** Publish a batch of states (max 100 per request). */
   publishStates(states: DeviceState[]): Promise<SuccessResponse>;
 
+  /**
+   * Publish a new image of a camera device of the integration (a device
+   * carrying a `camera`/`image` feature): the dashboard camera widget updates
+   * in real time. `image` is an `image/jpg;base64,...` string, limited to
+   * 150 KB and 12 images/minute per device — a dedicated channel, out of the
+   * states history and rate limit.
+   */
+  publishCameraImage(deviceExternalId: string, image: string): Promise<SuccessResponse>;
+
+  /**
+   * Publish the per-device transport status ('local' | 'cloud' |
+   * 'unreachable', max 100 per request), rendered as a badge on the devices in
+   * the Gladys UI in real time — the lightweight path for live switches, no
+   * need to re-publish the discovered devices. The matching user preference
+   * arrives in `gladys.config.GLADYS_PREFER_LOCAL`.
+   */
+  publishTransports(transports: DeviceTransportEntry[]): Promise<SuccessResponse>;
+
   /** Fetch the configuration (secrets included); also refreshes `config`. */
   getConfig(): Promise<IntegrationConfig>;
 
@@ -887,6 +926,15 @@ export declare class GladysIntegration extends EventEmitter {
 
   /** Handler called when the Gladys scheduler asks to poll a device (auto-acked). */
   onPoll(callback: (device: Device) => void | Promise<void>): void;
+
+  /**
+   * Handler called when Gladys needs a FRESH image of one of the integration
+   * cameras — live view of the dashboard widget, chat intent (auto-acked).
+   * Capture and resolve the image as an `image/jpg;base64,...` string
+   * (≤ 150 KB): it is acked back as `data.image`, awaited under 15 s (not the
+   * standard 5 s) so an ffmpeg-style capture fits.
+   */
+  onGetImage(callback: (device: Device) => string | Promise<string>): void;
 
   /** Handler called when the user asks for a device scan. */
   onScanRequest(callback: () => void | Promise<void>): void;
