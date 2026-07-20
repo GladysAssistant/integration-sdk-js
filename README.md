@@ -110,26 +110,176 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                       |
 | `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                             |
 | `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                              |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one)                                                                                                                                                                                                                                                                                                                                 |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` in Gladys (a LAN IP that changed in DHCP…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                        |
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                  |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                               |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                            |
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                              |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                   |
+| `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                     |
+| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, assigned host ports, granted/available hardware classes                                                                                                                                                                                                                                                                                |
+| `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                        |
+| `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                     |
+| `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                     |
+| `scanNetwork(type, { timeoutSeconds }?)`   | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job                                                                                                                                                                                                        |
 
 ### Handlers
 
 Register handlers before `connect()`. Commands are acked automatically: the handler resolves →
-`command-result success:true`, it throws → `success:false` with the error message, no handler registered →
+`command-result success:true` — and when the resolved value is not `undefined`, it is sent back in `data` (for
+commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                           |
-| --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                  |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states         |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices` |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                        |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                  |
+| Handler                                                               | Callback signature                                                                                                                                                                                                         |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                       |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                               |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                      |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                         |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                    |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                       |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s) |
+
+### Manifest actions
+
+For on-demand operations with a visible result — connection test, identify, re-pairing, protocol detection… —
+declare `actions` in the manifest: each one is rendered as a button (with an optional mini-form, `fields`) in the
+Configuration screen. The Tuya-style example: detect the protocol version of a device whose IP was typed by hand
+because the UDP scan did not find it — a long operation, hence the per-action `timeout_seconds` (5–120 s, default 30) replacing the standard 5 s ack delay:
+
+```json
+"actions": [
+  {
+    "key": "detect_protocol",
+    "label": { "en": "Detect protocol version", "fr": "Détecter la version de protocole" },
+    "timeout_seconds": 30,
+    "fields": [
+      { "key": "ip", "type": "string", "label": { "en": "Device IP" }, "required": true }
+    ]
+  }
+]
+```
+
+```js
+gladys.onAction('detect_protocol', async (fields) => {
+  const version = await tryProtocolVersions(fields.ip); // your protocol code, can take ~15 s
+  return { en: `Protocol ${version} detected`, fr: `Protocole ${version} détecté` };
+});
+```
+
+The resolved value — a string or a multi-language object — is displayed under the button; throwing displays the
+error message instead.
+
+### OAuth2 cloud services
+
+For cloud services that need a browser authorization (Netatmo-style), declare a field of type `oauth2` in the
+manifest `config_schema`: the Configuration screen renders a "Connect" button, and Gladys relays the whole flow to
+the integration — the Gladys server knows no provider.
+
+```js
+let state;
+
+gladys.onOAuthAuthorizeUrl(async (key, redirectUri) => {
+  // Build the URL yourself: client_id from your config, your scopes, and an
+  // anti-CSRF `state` you generate and remember for the callback.
+  state = crypto.randomUUID();
+  return `https://api.netatmo.com/oauth2/authorize?client_id=${gladys.config.client_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read_station&state=${state}`;
+});
+
+gladys.onOAuthCallback(async (key, { code, state: returnedState, redirectUri }) => {
+  if (returnedState !== state) throw new Error('state mismatch');
+  const tokens = await exchangeCodeForTokens(code, redirectUri); // your provider call
+  // Store the tokens as config keys OUTSIDE the config_schema: free internal
+  // storage, never shown in the UI, never sent through the front.
+  await gladys.setConfig({ access_token: tokens.access_token, refresh_token: tokens.refresh_token });
+  await gladys.setConnectionStatus(true);
+});
+```
+
+Token refresh stays the integration's job; when the token expires beyond repair, report it so the user sees it in
+the UI instead of a silently broken integration:
+
+```js
+await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
+```
+
+### Sub-containers
+
+Integrations that declare additional containers in their manifest (`containers` field — e.g. a Frigate + Mosquitto
+stack) drive their lifecycle through the host API, within the declared bounds. The typical pattern: generate the
+config files under `/data/containers/<name>/…`, then start (or restart) the container.
+
+```js
+await fs.writeFile('/data/containers/mqtt/mosquitto/config/passwd', passwordFile);
+await gladys.startContainer('mqtt', { env: { MQTT_PASSWORD: password } });
+
+const containers = await gladys.getContainers();
+const frigate = containers.find((c) => c.name === 'frigate');
+const coral = frigate.devices.find((d) => d.class === 'coral-usb');
+const detector = coral.granted && coral.available ? 'edgetpu' : 'cpu'; // adapt to what the user granted
+```
+
+When the user changes the hardware grants, the affected sub-containers are recreated and `onHardwareUpdated` fires:
+regenerate the configs and (re)start what is needed.
+
+### Mediated network discovery
+
+Integration containers run on a bridge network: LAN **broadcast, mDNS and SSDP traffic never reaches them** (only
+outgoing unicast crosses the NAT). Local discovery (Tuya-style UDP announcements, Hue mDNS…) therefore goes through
+the core, which runs on the host network: **the core captures (network position), the integration interprets
+(protocol knowledge)** — the core never parses anything.
+
+Declare what may be captured in the manifest `network_discovery` field (shown to the user on the install screen,
+like `containers` and hardware classes — undeclared captures are rejected with a 403):
+
+```json
+"network_discovery": [
+  { "type": "udp-broadcast", "ports": [6666, 6667, 7000] },
+  { "type": "mdns", "service": "_hue._tcp" }
+]
+```
+
+Then scan on demand (typically from `onScanRequest`), parse the raw results yourself, join the devices through
+unicast, and publish them:
+
+```js
+gladys.onScanRequest(async () => {
+  // Tuya-style: the devices announce themselves in UDP broadcast on the LAN.
+  const announcements = await gladys.scanNetwork('udp-broadcast', { timeoutSeconds: 10 });
+  const devices = announcements.map(({ source_ip, payload_base64 }) => {
+    const announcement = decodeTuyaPayload(Buffer.from(payload_base64, 'base64')); // your protocol code
+    const ids = gladys.externalIds('plug', announcement.gwId);
+    return {
+      name: `Tuya ${announcement.gwId}`,
+      external_id: ids.device,
+      // Keep the IP to reach the device in unicast afterwards (unicast crosses the NAT).
+      params: [{ name: 'IP_ADDRESS', value: source_ip }],
+      features: [],
+    };
+  });
+  await gladys.publishDiscoveredDevices(devices);
+});
+```
+
+Raw result shapes: `udp-broadcast` → `[{ source_ip, source_port, payload_base64 }]` (one entry per received
+datagram), `mdns` → `[{ name, host, addresses, port, txt }]`, `ssdp` → the raw headers per responder. Scans are
+synchronous and bounded (`timeoutSeconds` 1–30); requires a Gladys with mediated-discovery support (check the
+`gladys_version` range of your manifest).
+
+### Publishing states efficiently
+
+The host API rate-limits `POST /state` at **300 states per minute** per integration, sized for state _changes_,
+not full snapshots. An integration polling a large fleet (e.g. 50 Tuya devices × 6 features) must deduplicate and
+publish only the values that actually changed:
+
+```js
+const lastValues = new Map();
+const changed = readings.filter(({ id, value }) => lastValues.get(id) !== value);
+changed.forEach(({ id, value }) => lastValues.set(id, value));
+await gladys.publishStates(changed.map(({ id, value }) => ({ device_feature_external_id: id, state: value })));
+```
 
 ### Device constants
 

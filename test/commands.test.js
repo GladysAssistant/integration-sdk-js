@@ -43,6 +43,19 @@ describe('commands (auto-ack through command-result)', () => {
     assert.deepEqual(received, [[device, deviceFeature, 1]]);
   });
 
+  it('should send the resolved value in the ack data when it is not undefined', async () => {
+    gladys.onSetValue(async () => ({ applied: true }));
+    await gladys.connect();
+    server.send(EXTERNAL_INTEGRATION.DEVICE_SET_VALUE, {
+      message_id: 'msg-data',
+      device,
+      device_feature: deviceFeature,
+      value: 1,
+    });
+    const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+    assert.deepEqual(result.payload, { message_id: 'msg-data', success: true, data: { applied: true } });
+  });
+
   it('should ack with success:false and the error message when the handler throws', async () => {
     gladys.onSetValue(async () => {
       throw new Error('device unreachable');

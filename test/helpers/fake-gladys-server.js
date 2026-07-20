@@ -16,6 +16,8 @@ class FakeGladysServer {
     // Data returned by the REST endpoints.
     this.devices = [];
     this.config = {};
+    this.containers = [];
+    this.networkScanResults = [];
     this.status = {
       gladys_version: '4.62.0',
       service: { id: 'service-id', selector: 'ext-demo', status: 'RUNNING', version: '1.0.0' },
@@ -132,6 +134,10 @@ class FakeGladysServer {
         return;
       }
       const route = `${req.method} ${path}`;
+      if (req.method === 'POST' && /^\/container\/[^/]+\/(start|stop|restart)$/.test(path)) {
+        respond(200, { success: true });
+        return;
+      }
       switch (route) {
         case 'GET /status':
           respond(200, this.status);
@@ -154,6 +160,15 @@ class FakeGladysServer {
           break;
         case 'POST /state':
           respond(200, { success: true });
+          break;
+        case 'POST /connection_status':
+          respond(200, { success: true });
+          break;
+        case 'GET /container':
+          respond(200, { containers: this.containers });
+          break;
+        case 'POST /network_discovery/scan':
+          respond(200, this.networkScanResults);
           break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });
