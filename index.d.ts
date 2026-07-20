@@ -260,6 +260,8 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ELECTRICAL_VEHICLE_COMMAND: 'electrical-vehicle-command';
   readonly ENERGY_SENSOR: 'energy-sensor';
   readonly ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor';
+  readonly GRID_SENSOR: 'grid-sensor';
+  readonly HOME_OUTPUT_SENSOR: 'home-output-sensor';
   readonly FAN: 'fan';
   readonly HEATER: 'heater';
   readonly HEPA_FILTER_MONITORING: 'hepa-filter-monitoring';
@@ -473,6 +475,19 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly DAILY_PRODUCTION_REVENUE: 'daily-production-revenue';
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
+  };
+  readonly GRID_SENSOR: {
+    readonly INPUT_POWER: 'input-power';
+    readonly OUTPUT_POWER: 'output-power';
+    readonly POWER: 'power';
+    readonly INPUT_INDEX: 'input-index';
+    readonly OUTPUT_INDEX: 'output-index';
+  };
+  readonly HOME_OUTPUT_SENSOR: {
+    readonly POWER: 'power';
+    readonly INDEX: 'index';
+    readonly OFF_GRID_POWER: 'off-grid-power';
+    readonly OFF_GRID_INDEX: 'off-grid-index';
   };
   readonly TELEINFORMATION: {
     readonly BINARY: 'binary';
