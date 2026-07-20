@@ -20,8 +20,8 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_LEVEL, 'battery-level');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_POWER, 'discharge-power');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_ENERGY, 'charge-energy');
-    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_ENERGY, 'discharge-energy');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_INDEX, 'charge-index');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_INDEX, 'discharge-index');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_ENERGY_REMAINING, 'battery-energy-remaining');
   });
 

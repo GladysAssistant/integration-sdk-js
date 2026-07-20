@@ -397,9 +397,9 @@ export declare const DEVICE_FEATURE_TYPES: {
     // Power flowing out of the battery, W/kW (>= 0)
     readonly DISCHARGE_POWER: 'discharge-power';
     // Cumulative energy charged, kWh
-    readonly CHARGE_ENERGY: 'charge-energy';
+    readonly CHARGE_INDEX: 'charge-index';
     // Cumulative energy discharged, kWh
-    readonly DISCHARGE_ENERGY: 'discharge-energy';
+    readonly DISCHARGE_INDEX: 'discharge-index';
     // Currently available stored energy (instantaneous), kWh
     readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
   };
