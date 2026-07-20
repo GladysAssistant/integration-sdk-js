@@ -9,8 +9,11 @@ import {
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
   DEVICE_FEATURE_UNITS,
+  DEVICE_TRANSPORTS,
   DeviceExternalIds,
   DeviceFeature,
+  DeviceTransport,
+  DeviceTransportEntry,
   GladysApiError,
   GladysIntegration,
   HardwareUpdatedContainer,
@@ -60,6 +63,8 @@ const main = async (): Promise<void> => {
     await gladys.publishState(`${device.external_id}:temperature`, { state: 21.5, created_at: new Date() });
   });
 
+  gladys.onGetImage(async (device: Device) => `image/jpg;base64,${device.external_id}`);
+
   gladys.onConfigUpdated(async (config: IntegrationConfig) => {
     await gladys.setConfig({ last_seen_config: JSON.stringify(config) });
   });
@@ -94,6 +99,13 @@ const main = async (): Promise<void> => {
 
   await gladys.publishState(gladys.externalId('sensor:text'), { text: 'hello' });
   await gladys.publishStates([{ device_feature_external_id: gladys.externalId('sensor:temperature'), state: 20 }]);
+
+  await gladys.publishCameraImage(gladys.externalId('cam:abc'), 'image/jpg;base64,/9j/4AAQ');
+  const transport: DeviceTransport = DEVICE_TRANSPORTS.LOCAL;
+  const entries: DeviceTransportEntry[] = [{ external_id: gladys.externalId('plug:abc'), transport }];
+  await gladys.publishTransports(entries);
+  const preferLocal: unknown = gladys.config.GLADYS_PREFER_LOCAL;
+  void preferLocal;
 
   await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
   const containers: IntegrationContainer[] = await gladys.getContainers();

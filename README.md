@@ -114,6 +114,8 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                  |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                               |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                            |
+| `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                    |
+| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable' }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices                                                                                                                                                                               |
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                              |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                   |
 | `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                     |
@@ -134,6 +136,7 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                |
 | `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                       |
+| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                      |
 | `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                               |
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                      |
 | `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                |
@@ -203,6 +206,64 @@ the UI instead of a silently broken integration:
 
 ```js
 await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
+```
+
+### Camera images
+
+A camera is a regular device carrying a `camera`/`image` feature (`DEVICE_FEATURE_CATEGORIES.CAMERA` +
+`DEVICE_FEATURE_TYPES.CAMERA.IMAGE`), declared like any feature in the discovered devices. Two complementary
+paths, both using the same `image/jpg;base64,...` format (≤ 150 KB):
+
+- **Push** — publish a periodic snapshot with `publishCameraImage` (12 images/minute per device, i.e. one every
+  5 s; the continuous video stream is out of scope). The dashboard camera widget updates in real time.
+- **Pull** — answer `onGetImage` with a fresh capture when Gladys asks for one (live view of the dashboard
+  widget, chat intent "show me the camera"). The ack is awaited under **15 s** instead of the standard 5 s, so an
+  ffmpeg-style capture fits.
+
+```js
+gladys.onGetImage(async (device) => {
+  const jpeg = await captureSnapshot(device); // your camera code (ffmpeg, HTTP snapshot URL…)
+  return `image/jpg;base64,${jpeg.toString('base64')}`;
+});
+
+// And/or push a snapshot on your own schedule:
+await gladys.publishCameraImage(ids.device, `image/jpg;base64,${jpeg.toString('base64')}`);
+```
+
+Images never go through `publishState`: dedicated channel, out of the states history and of the 300 states/minute
+rate limit.
+
+### Cloud/local transport badge
+
+Dual-channel integrations (Tuya cloud+LAN, Shelly, eWeLink…) can reach the same device through different
+transports, per device and changing over time — without a visible hint the user cannot diagnose a slow or frozen
+device. Publish the **effective transport of each device** and Gladys renders it as a badge on the device cards
+(with a global summary), in real time:
+
+```js
+import { DEVICE_TRANSPORTS } from '@gladysassistant/integration-sdk';
+
+await gladys.publishTransports([
+  { external_id: ids.device, transport: DEVICE_TRANSPORTS.LOCAL }, // 'local' | 'cloud' | 'unreachable'
+]);
+```
+
+This is the lightweight path for live switches (the cloud link drops → `unreachable`, the LAN comes back →
+`local`) — no need to re-publish the discovered devices. Purely declarative: the cloud/local logic stays in the
+integration, Gladys only displays it.
+
+Declare the channels the integration supports in the manifest `transports` field (`["local"]`, `["cloud"]` or
+both). When both are declared, the Configuration screen shows a standard **"Prefer the local connection"** toggle,
+rendered and translated by the core; the integration receives it as the reserved config key
+**`GLADYS_PREFER_LOCAL`** (boolean, default `true`) — in `gladys.config` and through `onConfigUpdated`, like any
+key, but read-only for the integration (it is a user preference). The preference is a wish, not an order: apply it
+when you can, and reflect the per-device reality through `publishTransports`.
+
+```js
+gladys.onConfigUpdated(async (config) => {
+  usePreferLocal(config.GLADYS_PREFER_LOCAL !== false); // re-route what can be re-routed…
+  await gladys.publishTransports(currentTransports()); // …and reflect the actual outcome
+});
 ```
 
 ### Sub-containers
