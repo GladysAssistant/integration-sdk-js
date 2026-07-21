@@ -16,6 +16,22 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS, 'brightness');
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.ENERGY_PRODUCTION_SENSOR.POWER, 'power');
+  });
+
+  it('should expose the energy-flow category and type strings', () => {
+    assert.equal(DEVICE_FEATURE_CATEGORIES.GRID_SENSOR, 'grid-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.HOME_OUTPUT_SENSOR, 'home-output-sensor');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.INPUT_POWER, 'input-power');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.OUTPUT_POWER, 'output-power');
+    // Signed grid exchange for devices reporting a single value (import > 0, export < 0)
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.INPUT_INDEX, 'input-index');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.OUTPUT_INDEX, 'output-index');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.INDEX, 'index');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.OFF_GRID_POWER, 'off-grid-power');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.OFF_GRID_INDEX, 'off-grid-index');
   });
 
   it('should expose the canonical unit strings', () => {
