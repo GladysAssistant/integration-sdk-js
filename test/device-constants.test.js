@@ -9,6 +9,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR, 'motion-sensor');
     assert.equal(DEVICE_FEATURE_CATEGORIES.SWITCH, 'switch');
     assert.equal(DEVICE_FEATURE_CATEGORIES.LIGHT, 'light');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.BATTERY_STORAGE, 'battery-storage');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -16,6 +17,12 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS, 'brightness');
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_LEVEL, 'battery-level');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_POWER, 'discharge-power');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_INDEX, 'charge-index');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_INDEX, 'discharge-index');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.BATTERY_ENERGY_REMAINING, 'battery-energy-remaining');
   });
 
   it('should expose the canonical unit strings', () => {

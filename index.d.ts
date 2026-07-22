@@ -265,6 +265,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ANGLE_SENSOR: 'angle-sensor';
   readonly BATTERY: 'battery';
   readonly BATTERY_LOW: 'battery-low';
+  readonly BATTERY_STORAGE: 'battery-storage';
   readonly BUTTON: 'button';
   readonly CAMERA: 'camera';
   readonly CUBE: 'cube';
@@ -499,6 +500,20 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly DAILY_PRODUCTION_REVENUE: 'daily-production-revenue';
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
+  };
+  readonly BATTERY_STORAGE: {
+    // State of charge, percentage (0..100)
+    readonly BATTERY_LEVEL: 'battery-level';
+    // Power flowing into the battery, W/kW (>= 0)
+    readonly CHARGE_POWER: 'charge-power';
+    // Power flowing out of the battery, W/kW (>= 0)
+    readonly DISCHARGE_POWER: 'discharge-power';
+    // Cumulative energy charged, kWh
+    readonly CHARGE_INDEX: 'charge-index';
+    // Cumulative energy discharged, kWh
+    readonly DISCHARGE_INDEX: 'discharge-index';
+    // Currently available stored energy (instantaneous), kWh
+    readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
   };
   readonly TELEINFORMATION: {
     readonly BINARY: 'binary';
