@@ -153,6 +153,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ANGLE_SENSOR: 'angle-sensor';
   readonly BATTERY: 'battery';
   readonly BATTERY_LOW: 'battery-low';
+  readonly BATTERY_STORAGE: 'battery-storage';
   readonly BUTTON: 'button';
   readonly CAMERA: 'camera';
   readonly CUBE: 'cube';
@@ -202,7 +203,6 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly SIGNAL: 'signal';
   readonly SIREN: 'siren';
   readonly SISMIC_SENSOR: 'sismic-sensor';
-  readonly BATTERY_STORAGE: 'battery-storage';
   readonly SMOKE_SENSOR: 'smoke-sensor';
   readonly SOIL_MOISTURE_SENSOR: 'soil-moisture-sensor';
   readonly SURFACE: 'surface';
