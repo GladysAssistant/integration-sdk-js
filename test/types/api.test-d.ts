@@ -22,6 +22,7 @@ import {
   LinkedContact,
   LinkedUser,
   logger,
+  MessageContact,
   Logger,
   MdnsScanResult,
   NetworkActiveScanOptions,
@@ -94,8 +95,10 @@ const main = async (): Promise<void> => {
   gladys.onAction('detect_protocol', async (fields: ActionFields) => `Detected on ${String(fields.ip)}`);
   gladys.onAction('test_connection', async () => ({ en: 'Connected!', fr: 'Connecté !' }));
 
-  gladys.onSendMessage(async (contactId: string, message: OutgoingMessage) => {
-    const line: string = `${contactId}: ${message.text} ${message.file ?? ''}`;
+  gladys.onSendMessage(async (contact: MessageContact, message: OutgoingMessage) => {
+    // Linked channel (receive: true) → contact.id; send-only channel
+    // (receive: false) → the target user's contact_schema values.
+    const line: string = `${contact.id ?? ''} ${String(contact.username ?? '')}: ${message.text} ${message.file ?? ''}`;
     void line;
   });
 
