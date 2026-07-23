@@ -207,6 +207,40 @@ gladys.onAction('identify', async (fields) => {
 });
 ```
 
+### Onboarding guidance: `section` intro blocks and the Documentation link
+
+A generated form is compact, but it gives no room for onboarding guidance — the Netatmo-style case: in front of
+"Client ID", the user must first know they have to create an app on the manufacturer's developer platform. Declare
+fields of type **`section`** in the manifest `config_schema` (and in an action's `fields`, which share the format):
+purely presentational intro blocks that split the form into chapters. Since `config_schema` is an ordered list,
+sections naturally structure large forms.
+
+```json
+"config_schema": [
+  {
+    "key": "intro",
+    "type": "section",
+    "label": { "en": "Getting started", "fr": "Pour commencer" },
+    "description": { "en": "Create a developer account to get your API key.", "fr": "Créez un compte développeur pour obtenir votre clé d'API." },
+    "links": [ { "url": "https://open-meteo.com/en/docs", "label": { "en": "Open-Meteo docs", "fr": "Doc Open-Meteo" } } ]
+  },
+  { "key": "api_key", "type": "secret", "label": { "en": "API key" }, "required": true }
+]
+```
+
+A `section` carries a `label` (multi-language, `en` mandatory — the chapter title), a plain-text `description`
+(multi-language, ≤ 1000 characters per language) and optional `links` (≤ 5 entries `[{ url, label }]`, **https
+mandatory**). The core renders a visual separator + text + links opened in a new tab with the **target domain
+displayed** next to the label — no markdown, no HTML (declarative UI principle). Declaring `required`, `default` or
+`placeholder` on a section, or a non-https `url`, rejects the manifest.
+
+A section stores **no value**: its key never appears in `gladys.config`, `getConfig()`, `onConfigUpdated` values or
+an action handler's `fields`, and sending it through `setConfig` is rejected by the host API.
+
+For the long step-by-step (screenshots…), the right medium stays the mandatory repo documentation
+(`docs/en.md` + `docs/fr.md`): the Configuration screen now shows a permanent **"Documentation"** link to it
+(re-hosted, user language with `en` fallback) — it is when configuring that the user needs it most.
+
 ### OAuth2 cloud services
 
 For cloud services that need a browser authorization (Netatmo-style), declare a field of type `oauth2` in the
