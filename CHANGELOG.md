@@ -1,4 +1,9 @@
-## 0.8.0 (2026-07-23)
+
+## [0.8.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.7.0...v0.8.0) (2026-07-23)
+
+### Documentation
+
+* config form section intro blocks and permanent Documentation link (spec update) ([#15](https://github.com/GladysAssistant/integration-sdk-js/issues/15)) ([d6894ac](https://github.com/GladysAssistant/integration-sdk-js/commit/d6894ac10372e089678e555d53346ab949f3c62e))
 
 ## [0.7.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.6.1...v0.7.0) (2026-07-23)
 
@@ -33,9 +38,13 @@
 
 * log connection lifecycle by default to diagnose connectivity issues ([#4](https://github.com/GladysAssistant/integration-sdk-js/issues/4)) ([481710b](https://github.com/GladysAssistant/integration-sdk-js/commit/481710bf1fc6c729bb0aa1e271620a4795ac8b09))
 
-## [0.2.0](https://github.com/GladysAssistant/integration-sdk-js/compare/836c75a5da34bb9cda56837b45937bb9dd8189f1...v0.2.0) (2026-07-16)
+## [0.2.0](https://github.com/GladysAssistant/integration-sdk-js/compare/5acc3a363f7600454b98dbc4a91bc6568f68c6bb...v0.2.0) (2026-07-16)
 
 ### Features
 
 * add standard logger, device constants, externalIds() and handleShutdown() ([#3](https://github.com/GladysAssistant/integration-sdk-js/issues/3)) ([3fe1eb1](https://github.com/GladysAssistant/integration-sdk-js/commit/3fe1eb1f935995f3ead3c189e87a12472920ad73))
 * add standard logger, device constants, externalIds() and handleShutdown() ([#3](https://github.com/GladysAssistant/integration-sdk-js/issues/3)) ([836c75a](https://github.com/GladysAssistant/integration-sdk-js/commit/836c75a5da34bb9cda56837b45937bb9dd8189f1))
+
+### Documentation
+
+* use a realistic unique external_id in the README example ([#2](https://github.com/GladysAssistant/integration-sdk-js/issues/2)) ([5acc3a3](https://github.com/GladysAssistant/integration-sdk-js/commit/5acc3a363f7600454b98dbc4a91bc6568f68c6bb))
