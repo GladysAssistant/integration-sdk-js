@@ -51,21 +51,32 @@ jobs:
       - run: npm run check-types
       - run: npm run coverage
 
-      - name: Bump version, commit and tag
+      - name: Bump version, update changelog, commit and tag
         env:
           BUMP: ${{ inputs.bump }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm version "$BUMP" -m "chore(release): v%s"
+          npm version "$BUMP" --no-git-tag-version
+          VERSION="$(node -p "require('./package.json').version")"
+          # Prepend this release's section (conventional commits since the
+          # last tag) to CHANGELOG.md. Must run before the tag is created:
+          # once HEAD is tagged there are no "unreleased" commits left.
+          npm run changelog
+          git add package.json package-lock.json CHANGELOG.md
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
           git push --follow-tags origin HEAD
 
-      - name: Create GitHub release
+      - name: Create GitHub release with changelog notes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v$(node -p "require('./package.json').version")"
-          gh release create "$TAG" --generate-notes --verify-tag
+          VERSION="$(node -p "require('./package.json').version")"
+          # The release body is this version's section of CHANGELOG.md
+          # (everything from the first "## " heading to the next one).
+          awk '/^## /{n++} n==1' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --verify-tag
 
       # A tag pushed with GITHUB_TOKEN does not fire the publish workflow's
       # tag-push trigger (GitHub blocks workflow-to-workflow push events), so
