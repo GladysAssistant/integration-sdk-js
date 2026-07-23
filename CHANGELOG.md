@@ -1,3 +1,12 @@
+## [0.9.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.8.0...v0.9.0) (2026-07-23)
+
+### Features
+
+* Gladys Plus webhooks and send-only communication channels (spec B.17 + B.15 update) ([#17](https://github.com/GladysAssistant/integration-sdk-js/issues/17)) ([5fc661b](https://github.com/GladysAssistant/integration-sdk-js/commit/5fc661bded588ac3fa2f0aaf5996650254006959))
+
+### Bug Fixes
+
+* **ci:** full-history checkout and visible docs/refactor commits for the changelog ([#16](https://github.com/GladysAssistant/integration-sdk-js/issues/16)) ([3c89065](https://github.com/GladysAssistant/integration-sdk-js/commit/3c89065e4beaaf26d11bed9f6b6038433be15184))
 
 ## [0.8.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.7.0...v0.8.0) (2026-07-23)
 
