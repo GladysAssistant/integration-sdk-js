@@ -1,3 +1,4 @@
+## 0.8.0 (2026-07-23)
 
 ## [0.7.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.6.1...v0.7.0) (2026-07-23)
 
