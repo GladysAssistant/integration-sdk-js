@@ -27,6 +27,9 @@ import {
   NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
+  WebhookRequest,
+  WebhooksInfo,
+  WebhookSyncResponse,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
@@ -134,6 +137,22 @@ const main = async (): Promise<void> => {
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
   void [hostPort, oauthType];
+
+  gladys.onWebhook('events', async (request: WebhookRequest) => {
+    const line: string = `${request.method} ${request.body ?? ''} ${request.contentType ?? ''}`;
+    void line;
+  });
+  gladys.onWebhook('callback', async (request: WebhookRequest): Promise<WebhookSyncResponse> => {
+    return { status: 200, contentType: 'application/json', body: JSON.stringify(request.query) };
+  });
+  gladys.onWebhookUpdated(async (info: WebhooksInfo) => {
+    const urls: string[] = info.webhooks.map((webhook) => webhook.url);
+    void urls;
+  });
+  const webhooksInfo: WebhooksInfo = await gladys.getWebhooks();
+  const webhookAvailable: boolean = webhooksInfo.available;
+  const webhookType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEBHOOK_REQUEST;
+  void [webhookAvailable, webhookType];
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });

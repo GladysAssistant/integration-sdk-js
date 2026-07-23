@@ -218,6 +218,60 @@ export interface LinkedContact {
 }
 
 /**
+ * Modes of a webhook declared in the manifest `webhooks` field (contract
+ * B.17): 'fire_and_forget' — the third party only awaits an acknowledgment
+ * (the Netatmo-style event stream); 'sync' — the caller awaits the
+ * integration response (challenge/response registrations).
+ */
+export type WebhookMode = 'fire_and_forget' | 'sync';
+
+/** One webhook of the integration, as returned by GET /webhook (contract B.17). */
+export interface IntegrationWebhook {
+  /** Webhook key, as declared in the manifest. */
+  key: string;
+  mode: WebhookMode;
+  /** Ready-to-register public URL, relayed by Gladys Plus. */
+  url: string;
+}
+
+/**
+ * Gladys Plus webhook state of the integration (contract B.17), as returned
+ * by getWebhooks() and received by onWebhookUpdated.
+ */
+export interface WebhooksInfo {
+  /**
+   * Whether the relay is available: the user linked Gladys Plus and pasted
+   * their Open API key in the Configuration screen. When false, degrade to
+   * poll only.
+   */
+  available: boolean;
+  webhooks: IntegrationWebhook[];
+}
+
+/** A third-party request relayed to a webhook handler (contract B.17). */
+export interface WebhookRequest {
+  /** HTTP method used by the third party, e.g. 'POST'. */
+  method: string;
+  /** Query-string parameters of the relayed request. */
+  query: Record<string, string>;
+  /** Raw body relayed by the gateway. */
+  body: string | null;
+  /** Content type of the relayed body. */
+  contentType: string | null;
+}
+
+/**
+ * Response resolved by a sync webhook handler (contract B.17), returned to
+ * the third party through Gladys Plus. Body ≤ 64 KB.
+ */
+export interface WebhookSyncResponse {
+  /** HTTP status returned to the caller (200-499). */
+  status?: number;
+  contentType?: string;
+  body?: string;
+}
+
+/**
  * Per-device transport status (contract C.3), stored in the reserved
  * GLADYS_TRANSPORT device param and rendered as a badge in the Gladys UI.
  */
@@ -838,6 +892,9 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
     MESSAGE_SEND: string;
+    WEBHOOK_RECEIVED: string;
+    WEBHOOK_REQUEST: string;
+    WEBHOOK_UPDATED: string;
     HEARTBEAT: string;
   };
 };
@@ -956,6 +1013,15 @@ export declare class GladysIntegration extends EventEmitter {
 
   /** Fetch the contacts linked to the integration, with their linked Gladys user. */
   getContacts(): Promise<LinkedContact[]>;
+
+  /**
+   * Fetch the Gladys Plus webhook state (contract B.17): whether the relay is
+   * available, and the ready-to-register public URL of each webhook declared
+   * in the manifest. The Netatmo pattern: (re)register the URLs at the third
+   * party on every successful connection to the service, best effort.
+   * `available: false` (no Gladys Plus) → degrade to poll only.
+   */
+  getWebhooks(): Promise<WebhooksInfo>;
 
   /** Fetch the configuration (secrets included); also refreshes `config`. */
   getConfig(): Promise<IntegrationConfig>;
@@ -1077,6 +1143,29 @@ export declare class GladysIntegration extends EventEmitter {
    * notification forwarded to a linked user.
    */
   onSendMessage(callback: (contactId: string, message: OutgoingMessage) => void | Promise<void>): void;
+
+  /**
+   * Handler of ONE webhook declared in the manifest `webhooks` field
+   * (contract B.17): third-party events pushed from the Internet, relayed by
+   * Gladys Plus. Registered per webhook `key`. In `fire_and_forget` mode the
+   * resolved value is ignored and errors are swallowed — use the event to
+   * TRIGGER a refresh through the manufacturer API, never apply the payload
+   * as a state (events arrive duplicated, late or out of order). In `sync`
+   * mode, resolve with `{ status?, contentType?, body? }` (status 200-499,
+   * body ≤ 64 KB) and it is returned to the third party; resolving
+   * `undefined` or throwing lets Gladys answer its default empty `200`.
+   */
+  onWebhook(
+    key: string,
+    callback: (request: WebhookRequest) => WebhookSyncResponse | void | Promise<WebhookSyncResponse | void>,
+  ): void;
+
+  /**
+   * Handler called when the Gladys Plus webhook availability changes (Plus
+   * linked/unlinked, Open API key created or changed): re-register the fresh
+   * URLs at the third party, or degrade to poll only.
+   */
+  onWebhookUpdated(callback: (info: WebhooksInfo) => void | Promise<void>): void;
 
   /**
    * Handler of ONE action declared in the manifest `actions` field, run when

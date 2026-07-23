@@ -119,6 +119,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline                                                                                       |
 | `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                      |
 | `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                   |
+| `getWebhooks()`                            | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                           |
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                    |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                         |
 | `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                           |
@@ -135,19 +136,21 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                                                                                                                                                                                         |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                       |
-| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                      |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                               |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                      |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                |
-| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                         |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                    |
-| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                       |
-| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s) |
-| `onSendMessage(cb)`                                                   | `(contactId, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) to the contact in the external channel                                                                                |
+| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                                                                                 |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                        |
+| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                       |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                       |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                 |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                          |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                                                                                     |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                        |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                  |
+| `onSendMessage(cb)`                                                   | `(contactId, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) to the contact in the external channel                                                                                                                                                 |
+| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus |
+| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                           |
 
 ### Manifest actions
 
@@ -273,6 +276,62 @@ the UI instead of a silently broken integration:
 ```js
 await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
 ```
+
+### Incoming webhooks through Gladys Plus
+
+Some cloud services push their events by webhook (Netatmo-style: a setpoint change arrives in ~2-3 s instead of the
+next poll) — but a local Gladys is not reachable from the Internet. Declare the webhooks in the manifest (≤ 3
+entries) and **Gladys Plus relays them** to the integration, without knowing anything about it:
+
+```json
+"webhooks": [
+  { "key": "events", "label": { "en": "Netatmo events" }, "mode": "fire_and_forget" },
+  { "key": "callback", "label": { "en": "Subscription callback" }, "mode": "sync" }
+]
+```
+
+The user pastes their Gladys Plus Open API key in the "Gladys Plus webhooks" block of the Configuration screen
+(rendered by the core when the manifest declares `webhooks`), and Gladys builds the public URLs. The integration
+registers them at the third party — the Netatmo pattern: re-register on every successful connection, best effort:
+
+```js
+const registerWebhooks = async () => {
+  const { available, webhooks } = await gladys.getWebhooks();
+  if (!available) return; // no Gladys Plus linked: poll only
+  const events = webhooks.find((w) => w.key === 'events');
+  await thirdPartyApi.addWebhook(events.url); // your provider call
+};
+
+gladys.on('connected', registerWebhooks);
+gladys.onWebhookUpdated(registerWebhooks); // Plus linked/unlinked, key changed
+
+gladys.onWebhook('events', async ({ body }) => {
+  // Doctrine "trigger, not data": events arrive duplicated, late or out of
+  // order, and their payloads are partial — use them to TRIGGER a refresh
+  // through the manufacturer API, never apply the payload as a state. That is
+  // also what makes lost events painless: the poll stays the source of truth.
+  await refreshFromApi();
+});
+```
+
+Two modes, matching what exists in the field. **`fire_and_forget`** (default, the Netatmo-style event stream): the
+third party only awaits an acknowledgment — Gladys answers immediately and relays asynchronously; the handler's
+resolved value is ignored and its errors are swallowed. **`sync`** (challenge/response registrations,
+Strava/Microsoft Graph style): the caller awaits the integration response — resolve with
+`{ status?, contentType?, body? }` (status 200-499, body ≤ 64 KB) and it is returned verbatim to the third party;
+resolving `undefined` or throwing lets Gladys answer its default empty `200`:
+
+```js
+gladys.onWebhook('callback', async ({ query }) => ({
+  status: 200,
+  contentType: 'application/json',
+  body: JSON.stringify({ 'hub.challenge': query['hub.challenge'] }),
+}));
+```
+
+Security, stated honestly: the URL **is** the secret (payloads are not authenticated — verifying the provider
+signature, when one exists, is the integration's job), and requires a Gladys with webhook-relay support (check the
+`gladys_version` range of your manifest).
 
 ### Communication channels
 
