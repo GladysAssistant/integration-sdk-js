@@ -160,6 +160,31 @@ describe('per-device transport status (contract C.3)', () => {
       assert.equal(server.getRequests('POST', '/device/transport').length, 0);
     });
 
+    it('should throw when the "en" key is inherited, as JSON serialization would drop it', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          {
+            external_id: 'ext:ext-demo:plug:1',
+            transport: 'cloud',
+            degraded: true,
+            message: Object.create({ en: 'Inherited, not serialized' }),
+          },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when the message is an array', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true, message: ['en'] },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
     it('should throw when the message is not an object', async () => {
       await assert.rejects(
         gladys.publishTransports([
