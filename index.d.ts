@@ -72,7 +72,10 @@ export interface DeviceState {
   created_at?: string | Date;
 }
 
-/** Integration configuration values, keyed by config_schema key. */
+/**
+ * Integration configuration values, keyed by config_schema key. `section`
+ * fields (presentational intro blocks) store no value and never appear here.
+ */
 export type IntegrationConfig = Record<string, unknown>;
 
 /** Response of GET /status (contract C.3). */
@@ -180,7 +183,11 @@ export interface MdnsScanResult {
 /** Raw result of an 'ssdp' mediated scan: the raw headers of one responder. */
 export type SsdpScanResult = Record<string, string>;
 
-/** Values of the `fields` mini-form of a manifest action (contract C.1). */
+/**
+ * Values of the `fields` mini-form of a manifest action (contract C.1).
+ * `section` fields (presentational intro blocks) store no value and never
+ * appear here.
+ */
 export type ActionFields = Record<string, unknown>;
 
 /**
@@ -953,7 +960,11 @@ export declare class GladysIntegration extends EventEmitter {
   /** Fetch the configuration (secrets included); also refreshes `config`. */
   getConfig(): Promise<IntegrationConfig>;
 
-  /** Save configuration values (partial merge). */
+  /**
+   * Save configuration values (partial merge). Keys of `section` fields
+   * (presentational intro blocks, no stored value) are rejected by the host
+   * API.
+   */
   setConfig(partialConfig: IntegrationConfig): Promise<SuccessResponse>;
 
   /** Fetch the Gladys version and the integration service status. */
