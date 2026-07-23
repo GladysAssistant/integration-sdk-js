@@ -103,30 +103,31 @@ for the connection lifecycle logs, default `createLogger({ name: 'gladys-sdk' })
 
 All methods return Promises; host API errors are thrown as `GladysApiError { status, code, message }`.
 
-| Method                                     | Contract                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. A token refused by Gladys (close code 4000) keeps the loop armed but jumps straight to the max delay — the refusal may be transient, and the integration must never go zombie                       |
-| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                                                               |
-| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                                             |
-| `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                                                   |
-| `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                                                    |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` in Gladys (a LAN IP that changed in DHCP…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                                              |
-| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                        |
-| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                     |
-| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                                          |
-| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                                                     |
-| `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline                                                                                       |
-| `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                      |
-| `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                   |
-| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                    |
-| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                         |
-| `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                           |
-| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, assigned host ports, granted/available hardware classes                                                                                                                                                                                                                                                                                                      |
-| `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                              |
-| `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                           |
-| `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                           |
-| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies |
+| Method                                     | Contract                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. A token refused by Gladys (close code 4000) keeps the loop armed but jumps straight to the max delay — the refusal may be transient, and the integration must never go zombie                         |
+| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                                               |
+| `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                                                     |
+| `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                                                      |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` in Gladys (a LAN IP that changed in DHCP…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                                                |
+| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                          |
+| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                       |
+| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                                            |
+| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                                                       |
+| `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline. Bidirectional channels only: a send-only channel (`messaging.receive: false`) is a 403 |
+| `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                        |
+| `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                     |
+| `getWebhooks()`                            | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                             |
+| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                      |
+| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                           |
+| `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                             |
+| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, assigned host ports, granted/available hardware classes                                                                                                                                                                                                                                                                                                        |
+| `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                |
+| `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                             |
+| `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                             |
+| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies   |
 
 ### Handlers
 
@@ -135,19 +136,21 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                                                                                                                                                                                         |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                       |
-| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                      |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                               |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                      |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                |
-| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                         |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                    |
-| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                       |
-| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s) |
-| `onSendMessage(cb)`                                                   | `(contactId, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) to the contact in the external channel                                                                                |
+| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                                                                                                                          |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                 |
+| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                         |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                          |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                   |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                                                                                                                              |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                 |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                           |
+| `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`) |
+| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                          |
+| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                    |
 
 ### Manifest actions
 
@@ -274,11 +277,103 @@ the UI instead of a silently broken integration:
 await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
 ```
 
+### Incoming webhooks through Gladys Plus
+
+Some cloud services push their events by webhook (Netatmo-style: a setpoint change arrives in ~2-3 s instead of the
+next poll) — but a local Gladys is not reachable from the Internet. Declare the webhooks in the manifest (≤ 3
+entries) and **Gladys Plus relays them** to the integration, without knowing anything about it:
+
+```json
+"webhooks": [
+  { "key": "events", "label": { "en": "Netatmo events" }, "mode": "fire_and_forget" },
+  { "key": "callback", "label": { "en": "Subscription callback" }, "mode": "sync" }
+]
+```
+
+The user pastes their Gladys Plus Open API key in the "Gladys Plus webhooks" block of the Configuration screen
+(rendered by the core when the manifest declares `webhooks`), and Gladys builds the public URLs. The integration
+registers them at the third party — the Netatmo pattern: re-register on every successful connection, best effort:
+
+```js
+const registerWebhooks = async () => {
+  const { available, webhooks } = await gladys.getWebhooks();
+  if (!available) return; // no Gladys Plus linked: poll only
+  const events = webhooks.find((w) => w.key === 'events');
+  await thirdPartyApi.addWebhook(events.url); // your provider call
+};
+
+gladys.on('connected', registerWebhooks);
+gladys.onWebhookUpdated(registerWebhooks); // Plus linked/unlinked, key changed
+
+gladys.onWebhook('events', async ({ body }) => {
+  // Doctrine "trigger, not data": events arrive duplicated, late or out of
+  // order, and their payloads are partial — use them to TRIGGER a refresh
+  // through the manufacturer API, never apply the payload as a state. That is
+  // also what makes lost events painless: the poll stays the source of truth.
+  await refreshFromApi();
+});
+```
+
+Two modes, matching what exists in the field. **`fire_and_forget`** (default, the Netatmo-style event stream): the
+third party only awaits an acknowledgment — Gladys answers immediately and relays asynchronously; the handler's
+resolved value is ignored and its errors are swallowed. **`sync`** (challenge/response registrations,
+Strava/Microsoft Graph style): the caller awaits the integration response — resolve with
+`{ status?, contentType?, body? }` (status 200-499, body ≤ 64 KB) and it is returned verbatim to the third party;
+resolving `undefined` or throwing lets Gladys answer its default empty `200`:
+
+```js
+gladys.onWebhook('callback', async ({ query }) => ({
+  status: 200,
+  contentType: 'application/json',
+  body: JSON.stringify({ 'hub.challenge': query['hub.challenge'] }),
+}));
+```
+
+Security, stated honestly: the URL **is** the secret (payloads are not authenticated — verifying the provider
+signature, when one exists, is the integration's job), and requires a Gladys with webhook-relay support (check the
+`gladys_version` range of your manifest).
+
 ### Communication channels
 
-Messaging channels (Telegram-like bots — Matrix, Signal, WhatsApp…) are integrations of manifest
-`type: "communication"`: no Devices/Discovery screens, the user links their account from the Configuration screen
-of the Gladys UI, and the integration exchanges messages through the host API. Three building blocks:
+Messaging channels are integrations of manifest `type: "communication"`: no Devices/Discovery screens, and the
+integration exchanges messages through the host API. The manifest declares which of the **two families** the
+channel belongs to — sending is always present, receiving is not:
+
+```json
+"messaging": { "receive": true }
+```
+
+- **Bidirectional chat channels** (`receive: true` — Telegram-like bots: Matrix, Signal, WhatsApp…): the user
+  links their account by code from the Configuration screen, then speaks to the brain from the channel.
+- **Send-only notification channels** (`receive: false` — Free Mobile SMS, CallMeBot…): no incoming path exists.
+  Each user enters their own credentials in the "My account" block of the Configuration screen, described by the
+  manifest **`contact_schema`** (same flat format as `config_schema`); Gladys passes them to the integration with
+  every outgoing message. No linking code — there is no channel to send it through, and no user authority to
+  protect (the `403` on `publishMessage` guarantees a notification channel never talks to the brain).
+
+The identity handling follows: `onSendMessage(contact, message)` receives the identity **resolved by Gladys** —
+`{ id }` (the linked contact id) for a bidirectional channel, or the target user's `contact_schema` values for a
+send-only one. Users without a linked account or configured credentials are skipped by Gladys and never reach the
+handler.
+
+A send-only channel is just the outgoing block (the Free Mobile-style case):
+
+```json
+"messaging": { "receive": false },
+"contact_schema": [
+  { "key": "username", "type": "string", "label": { "en": "Free Mobile login" }, "required": true },
+  { "key": "access_token", "type": "secret", "label": { "en": "SMS API key" }, "required": true }
+]
+```
+
+```js
+gladys.onSendMessage(async (contact, message) => {
+  // contact = the target user's contact_schema values.
+  await sendFreeMobileSms(contact.username, contact.access_token, message.text);
+});
+```
+
+A bidirectional channel adds the linking and incoming blocks:
 
 - **Linking** — the consent step. The user clicks "Link my account" in the Gladys UI, which shows a short code
   (single use, 15 minutes TTL); they send it to the bot in the external channel, and the integration relays it
@@ -288,12 +383,10 @@ of the Gladys UI, and the integration exchanges messages through the host API. T
 - **Incoming** — `publishMessage(contactId, text)`: Gladys resolves the contact to the linked user and routes the
   message to the brain and the chat history; the reply comes back through `onSendMessage`. An unknown contact is
   rejected with a 404: catch it and answer "account not linked" with the linking instructions.
-- **Outgoing** — `onSendMessage`: replies of the brain and notifications forwarded to a linked user (scenes,
-  alerts…), delivered by the integration in the external channel.
 
 ```js
-gladys.onSendMessage(async (contactId, message) => {
-  await bot.sendMessage(contactId, message.text); // message.file: attached image (base64) or null
+gladys.onSendMessage(async (contact, message) => {
+  await bot.sendMessage(contact.id, message.text); // message.file: attached image (base64) or null
 });
 
 bot.on('message', async (chatId, text) => {

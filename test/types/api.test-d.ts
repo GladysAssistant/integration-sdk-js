@@ -22,11 +22,15 @@ import {
   LinkedContact,
   LinkedUser,
   logger,
+  MessageContact,
   Logger,
   MdnsScanResult,
   NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
+  WebhookRequest,
+  WebhooksInfo,
+  WebhookSyncResponse,
   WEBSOCKET_MESSAGE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
@@ -91,8 +95,10 @@ const main = async (): Promise<void> => {
   gladys.onAction('detect_protocol', async (fields: ActionFields) => `Detected on ${String(fields.ip)}`);
   gladys.onAction('test_connection', async () => ({ en: 'Connected!', fr: 'Connecté !' }));
 
-  gladys.onSendMessage(async (contactId: string, message: OutgoingMessage) => {
-    const line: string = `${contactId}: ${message.text} ${message.file ?? ''}`;
+  gladys.onSendMessage(async (contact: MessageContact, message: OutgoingMessage) => {
+    // Linked channel (receive: true) → contact.id; send-only channel
+    // (receive: false) → the target user's contact_schema values.
+    const line: string = `${contact.id ?? ''} ${String(contact.username ?? '')}: ${message.text} ${message.file ?? ''}`;
     void line;
   });
 
@@ -134,6 +140,22 @@ const main = async (): Promise<void> => {
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
   void [hostPort, oauthType];
+
+  gladys.onWebhook('events', async (request: WebhookRequest) => {
+    const line: string = `${request.method} ${request.body ?? ''} ${request.contentType ?? ''}`;
+    void line;
+  });
+  gladys.onWebhook('callback', async (request: WebhookRequest): Promise<WebhookSyncResponse> => {
+    return { status: 200, contentType: 'application/json', body: JSON.stringify(request.query) };
+  });
+  gladys.onWebhookUpdated(async (info: WebhooksInfo) => {
+    const urls: string[] = info.webhooks.map((webhook) => webhook.url);
+    void urls;
+  });
+  const webhooksInfo: WebhooksInfo = await gladys.getWebhooks();
+  const webhookAvailable: boolean = webhooksInfo.available;
+  const webhookType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEBHOOK_REQUEST;
+  void [webhookAvailable, webhookType];
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });

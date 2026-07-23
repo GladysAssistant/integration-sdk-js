@@ -23,20 +23,57 @@ describe('communication integrations (contract B.15)', () => {
   });
 
   describe('gladys.onSendMessage(callback)', () => {
-    it('should ack message.send with success:true after delivering the message', async () => {
+    it('should ack message.send with success:true after delivering to a linked contact', async () => {
       const delivered = [];
-      gladys.onSendMessage(async (contactId, message) => {
-        delivered.push([contactId, message]);
+      gladys.onSendMessage(async (contact, message) => {
+        delivered.push([contact, message]);
       });
       await gladys.connect();
       server.send(EXTERNAL_INTEGRATION.MESSAGE_SEND, {
         message_id: 'msg-1',
-        contact_id: '12345',
+        contact: { id: '12345' },
         message: { text: 'The light is on', file: null },
       });
       const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
       assert.deepEqual(result.payload, { message_id: 'msg-1', success: true });
-      assert.deepEqual(delivered, [['12345', { text: 'The light is on', file: null }]]);
+      assert.deepEqual(delivered, [[{ id: '12345' }, { text: 'The light is on', file: null }]]);
+    });
+
+    it('should pass the contact_schema values of a send-only channel through to the handler', async () => {
+      const delivered = [];
+      gladys.onSendMessage(async (contact, message) => {
+        delivered.push([contact, message]);
+      });
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.MESSAGE_SEND, {
+        message_id: 'msg-2',
+        contact: { username: '0612345678', access_token: 'secret-token' },
+        message: { text: 'Alarm triggered!', file: null },
+      });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, { message_id: 'msg-2', success: true });
+      assert.deepEqual(delivered, [
+        [
+          { username: '0612345678', access_token: 'secret-token' },
+          { text: 'Alarm triggered!', file: null },
+        ],
+      ]);
+    });
+
+    it('should wrap the bare contact_id of a core predating the send-only support', async () => {
+      const delivered = [];
+      gladys.onSendMessage(async (contact, message) => {
+        delivered.push([contact, message]);
+      });
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.MESSAGE_SEND, {
+        message_id: 'msg-3',
+        contact_id: '12345',
+        message: { text: 'hello', file: null },
+      });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, { message_id: 'msg-3', success: true });
+      assert.deepEqual(delivered, [[{ id: '12345' }, { text: 'hello', file: null }]]);
     });
 
     it('should ack with success:false and the error message when the delivery fails', async () => {
@@ -45,23 +82,23 @@ describe('communication integrations (contract B.15)', () => {
       });
       await gladys.connect();
       server.send(EXTERNAL_INTEGRATION.MESSAGE_SEND, {
-        message_id: 'msg-2',
-        contact_id: '12345',
+        message_id: 'msg-4',
+        contact: { id: '12345' },
         message: { text: 'hello', file: null },
       });
       const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
-      assert.deepEqual(result.payload, { message_id: 'msg-2', success: false, error: 'channel unreachable' });
+      assert.deepEqual(result.payload, { message_id: 'msg-4', success: false, error: 'channel unreachable' });
     });
 
     it('should ack with success:false "not implemented" when no handler is registered', async () => {
       await gladys.connect();
       server.send(EXTERNAL_INTEGRATION.MESSAGE_SEND, {
-        message_id: 'msg-3',
-        contact_id: '12345',
+        message_id: 'msg-5',
+        contact: { id: '12345' },
         message: { text: 'hello', file: null },
       });
       const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
-      assert.deepEqual(result.payload, { message_id: 'msg-3', success: false, error: 'not implemented' });
+      assert.deepEqual(result.payload, { message_id: 'msg-5', success: false, error: 'not implemented' });
     });
   });
 
@@ -101,6 +138,20 @@ describe('communication integrations (contract B.15)', () => {
         assert.ok(error instanceof GladysApiError);
         assert.equal(error.status, 404);
         assert.equal(error.message, 'CONTACT_NOT_FOUND');
+        return true;
+      });
+    });
+
+    it('should throw a 403 GladysApiError on a send-only channel (messaging.receive: false)', async () => {
+      server.forceResponse('POST', '/message', 403, {
+        status: 403,
+        code: 'FORBIDDEN',
+        message: 'MESSAGING_RECEIVE_DISABLED',
+      });
+      await assert.rejects(gladys.publishMessage('12345', 'hello'), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 403);
+        assert.equal(error.message, 'MESSAGING_RECEIVE_DISABLED');
         return true;
       });
     });
