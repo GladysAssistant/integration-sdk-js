@@ -85,4 +85,136 @@ describe('per-device transport status (contract C.3)', () => {
       assert.equal(server.getRequests('POST', '/device/transport').length, 0);
     });
   });
+
+  describe('degraded state (contract C.3)', () => {
+    it('should forward degraded entries with their multi-language message', async () => {
+      const response = await gladys.publishTransports([
+        {
+          external_id: 'ext:ext-demo:plug:1',
+          transport: 'cloud',
+          degraded: true,
+          message: { en: 'Local session refused, falling back to cloud', fr: 'Session locale refusée, bascule cloud' },
+        },
+      ]);
+      assert.deepEqual(response, { success: true });
+      assert.deepEqual(server.getRequests('POST', '/device/transport')[0].body, {
+        transports: [
+          {
+            device_external_id: 'ext:ext-demo:plug:1',
+            transport: 'cloud',
+            degraded: true,
+            message: {
+              en: 'Local session refused, falling back to cloud',
+              fr: 'Session locale refusée, bascule cloud',
+            },
+          },
+        ],
+      });
+    });
+
+    it('should forward a degraded entry without message', async () => {
+      await gladys.publishTransports([{ external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true }]);
+      assert.deepEqual(server.getRequests('POST', '/device/transport')[0].body, {
+        transports: [{ device_external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true }],
+      });
+    });
+
+    it('should omit the degraded keys on nominal entries, so Gladys clears a previous degraded state', async () => {
+      await gladys.publishTransports([
+        { external_id: 'ext:ext-demo:plug:1', transport: 'local' },
+        { external_id: 'ext:ext-demo:plug:2', transport: 'local', degraded: false },
+      ]);
+      assert.deepEqual(server.getRequests('POST', '/device/transport')[0].body, {
+        transports: [
+          { device_external_id: 'ext:ext-demo:plug:1', transport: 'local' },
+          { device_external_id: 'ext:ext-demo:plug:2', transport: 'local' },
+        ],
+      });
+    });
+
+    it('should throw when degraded is not a boolean', async () => {
+      await assert.rejects(
+        gladys.publishTransports([{ external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: 'true' }]),
+        /"degraded" must be a boolean/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when a message is given without degraded: true', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', message: { en: 'Ignored by Gladys' } },
+        ]),
+        /"message" is only taken into account when "degraded" is true/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when the message has no "en" key', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true, message: { fr: 'Bascule cloud' } },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when the "en" key is inherited, as JSON serialization would drop it', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          {
+            external_id: 'ext:ext-demo:plug:1',
+            transport: 'cloud',
+            degraded: true,
+            message: Object.create({ en: 'Inherited, not serialized' }),
+          },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when the message is an array', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true, message: ['en'] },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when the message is not an object', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true, message: 'plain string' },
+        ]),
+        /"message" must be a multi-language object with a mandatory "en" key/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should throw when a message language exceeds 200 characters', async () => {
+      await assert.rejects(
+        gladys.publishTransports([
+          {
+            external_id: 'ext:ext-demo:plug:1',
+            transport: 'cloud',
+            degraded: true,
+            message: { en: 'ok', fr: 'x'.repeat(201) },
+          },
+        ]),
+        /at most 200 characters/,
+      );
+      assert.equal(server.getRequests('POST', '/device/transport').length, 0);
+    });
+
+    it('should accept a message language of exactly 200 characters', async () => {
+      const response = await gladys.publishTransports([
+        { external_id: 'ext:ext-demo:plug:1', transport: 'cloud', degraded: true, message: { en: 'x'.repeat(200) } },
+      ]);
+      assert.deepEqual(response, { success: true });
+    });
+  });
 });
