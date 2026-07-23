@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  # Manual trigger from the Actions tab: pick patch/minor/major and run.
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  # Push the version bump commit + tag and create the GitHub release.
+  contents: write
+  # Dispatch the publish workflow on the new tag.
+  actions: write
+
+# Never run two releases at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release (${{ inputs.bump }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release runs from the default branch
+        if: github.ref_name != github.event.repository.default_branch
+        run: |
+          echo "::error::Releases must be run from ${{ github.event.repository.default_branch }}, not ${{ github.ref_name }}"
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Never tag a broken build.
+      - run: npm run lint
+      - run: npm run prettier-check
+      - run: npm run check-types
+      - run: npm run coverage
+
+      - name: Bump version, commit and tag
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "$BUMP" -m "chore(release): v%s"
+          git push --follow-tags origin HEAD
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release create "$TAG" --generate-notes --verify-tag
+
+      # A tag pushed with GITHUB_TOKEN does not fire the publish workflow's
+      # tag-push trigger (GitHub blocks workflow-to-workflow push events), so
+      # dispatch it explicitly on the new tag.
+      - name: Trigger npm publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          gh workflow run publish.yml --ref "$TAG"
