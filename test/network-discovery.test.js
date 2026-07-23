@@ -57,6 +57,123 @@ describe('mediated network discovery (gladys.scanNetwork)', () => {
     });
   });
 
+  it('should POST port and payload_base64 for a udp-active-broadcast scan with a Buffer payload', async () => {
+    const payload = Buffer.from('kasa-discovery-request');
+    await gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload, timeoutSeconds: 5 });
+    assert.deepEqual(server.getRequests('POST', '/network_discovery/scan')[0].body, {
+      type: 'udp-active-broadcast',
+      port: 9999,
+      payload_base64: payload.toString('base64'),
+      timeout_seconds: 5,
+    });
+  });
+
+  it('should accept an already-base64-encoded string payload for a udp-active-broadcast scan', async () => {
+    const payloadBase64 = Buffer.from('kasa-discovery-request').toString('base64');
+    await gladys.scanNetwork('udp-active-broadcast', { port: 20002, payload: payloadBase64 });
+    assert.deepEqual(server.getRequests('POST', '/network_discovery/scan')[0].body, {
+      type: 'udp-active-broadcast',
+      port: 20002,
+      payload_base64: payloadBase64,
+    });
+  });
+
+  it('should reject a udp-active-broadcast scan without a port, without any HTTP request', async () => {
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { payload: Buffer.from('x') }),
+      /"port" \(a manifest-declared port\) is required/,
+    );
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
+  });
+
+  it('should reject a udp-active-broadcast scan without a payload, without any HTTP request', async () => {
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999 }),
+      /"payload" \(a Buffer or a base64 string\) is required/,
+    );
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
+  });
+
+  it('should reject an empty udp-active-broadcast payload, without any HTTP request', async () => {
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.alloc(0) }),
+      /"payload" must not be empty/,
+    );
+    // A non-empty string that decodes to zero bytes (invalid base64) is empty too.
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: '???' }),
+      /"payload" must not be empty/,
+    );
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
+  });
+
+  it('should reject a udp-active-broadcast payload over 512 decoded bytes, without any HTTP request', async () => {
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.alloc(513) }),
+      /maximum payload size is 512 decoded bytes/,
+    );
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
+  });
+
+  it('should accept a udp-active-broadcast payload of exactly 512 decoded bytes', async () => {
+    await gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.alloc(512) });
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 1);
+  });
+
+  it('should throw a 429 GladysApiError when the active-scan rate limit (1 scan / 10 s) is hit', async () => {
+    server.forceResponse('POST', '/network_discovery/scan', 429, {
+      status: 429,
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Only one active scan every 10 seconds per integration',
+    });
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.from('x') }),
+      (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 429);
+        assert.equal(error.code, 'TOO_MANY_REQUESTS');
+        return true;
+      },
+    );
+  });
+
+  it('should support the full TP-Link-style flow: active scan, decode the unicast replies, publish discovered devices', async () => {
+    // The integration forges the encrypted Kasa request and decrypts the
+    // replies (the crypto stays in the container); the core only broadcasts
+    // the payload and relays the raw unicast replies.
+    server.networkScanResults = [
+      {
+        source_ip: '192.168.1.60',
+        source_port: 9999,
+        payload_base64: Buffer.from(JSON.stringify({ deviceId: 'kasa-plug-1', alias: 'Living room plug' })).toString(
+          'base64',
+        ),
+      },
+    ];
+    const replies = await gladys.scanNetwork('udp-active-broadcast', {
+      port: 9999,
+      payload: Buffer.from('kasa-discovery-request'),
+      timeoutSeconds: 5,
+    });
+    const devices = replies.map((reply) => {
+      const info = JSON.parse(Buffer.from(reply.payload_base64, 'base64').toString());
+      const ids = gladys.externalIds('plug', info.deviceId);
+      return {
+        name: info.alias,
+        external_id: ids.device,
+        // The integration then reaches the device in unicast at reply.source_ip.
+        params: [{ name: 'IP_ADDRESS', value: reply.source_ip }],
+        features: [],
+      };
+    });
+    await gladys.publishDiscoveredDevices(devices);
+    const published = server.getRequests('POST', '/discovered_device')[0].body.devices;
+    assert.equal(published.length, 1);
+    assert.equal(published[0].external_id, 'ext:ext-demo:plug:kasa-plug-1');
+    assert.equal(published[0].name, 'Living room plug');
+    assert.deepEqual(published[0].params, [{ name: 'IP_ADDRESS', value: '192.168.1.60' }]);
+  });
+
   it('should support the full Tuya-style flow: scan, parse the raw payloads, publish discovered devices', async () => {
     // The core relays the raw UDP announcements; decoding them (tuyapi
     // MessageParser in the real integration) stays on the integration side.

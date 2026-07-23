@@ -138,12 +138,27 @@ export interface HardwareUpdatedContainer {
 }
 
 /** Capture types of the manifest `network_discovery` field (contract B.16). */
-export type NetworkDiscoveryType = 'udp-broadcast' | 'mdns' | 'ssdp';
+export type NetworkDiscoveryType = 'udp-broadcast' | 'udp-active-broadcast' | 'mdns' | 'ssdp';
 
 /** Options of a mediated network scan. */
 export interface NetworkScanOptions {
   /** Scan duration in seconds (1-30). */
   timeoutSeconds?: number;
+}
+
+/**
+ * Options of an active broadcast scan ('udp-active-broadcast', contract B.16):
+ * the integration forges the discovery request, the core broadcasts it and
+ * relays the raw unicast replies.
+ */
+export interface NetworkActiveScanOptions extends NetworkScanOptions {
+  /** Destination UDP port of the broadcast, among the manifest-declared ports. */
+  port: number;
+  /**
+   * Discovery request to broadcast, as a Buffer or an already-base64-encoded
+   * string (≤ 512 decoded bytes).
+   */
+  payload: Buffer | string;
 }
 
 /** Raw result of a 'udp-broadcast' mediated scan: one received datagram. */
@@ -977,11 +992,18 @@ export declare class GladysIntegration extends EventEmitter {
    * containers never receive LAN broadcast/mDNS/SSDP) and returns the RAW
    * results. Parse them yourself, join the devices through unicast, then
    * publish them with `publishDiscoveredDevices`. Undeclared type/ports → 403.
+   *
+   * 'udp-active-broadcast' is the query/response variant (TP-Link Kasa style):
+   * the integration forges the discovery request (`payload`), the core
+   * broadcasts it on `port` and relays the raw unicast replies. Guardrails:
+   * broadcast only, declared ports only, payload ≤ 512 decoded bytes, 1 scan
+   * per 10 s per integration (429 otherwise).
    */
   scanNetwork(type: 'udp-broadcast', options?: NetworkScanOptions): Promise<UdpBroadcastScanResult[]>;
+  scanNetwork(type: 'udp-active-broadcast', options: NetworkActiveScanOptions): Promise<UdpBroadcastScanResult[]>;
   scanNetwork(type: 'mdns', options?: NetworkScanOptions): Promise<MdnsScanResult[]>;
   scanNetwork(type: 'ssdp', options?: NetworkScanOptions): Promise<SsdpScanResult[]>;
-  scanNetwork(type: string, options?: NetworkScanOptions): Promise<unknown[]>;
+  scanNetwork(type: string, options?: NetworkScanOptions & Partial<NetworkActiveScanOptions>): Promise<unknown[]>;
 
   /** Handler called when the user actions a device feature (auto-acked). */
   onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;

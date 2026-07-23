@@ -24,6 +24,7 @@ import {
   logger,
   Logger,
   MdnsScanResult,
+  NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
   WEBSOCKET_MESSAGE_TYPES,
@@ -146,7 +147,13 @@ const main = async (): Promise<void> => {
   const services: MdnsScanResult[] = await gladys.scanNetwork('mdns');
   const txt: Record<string, string> = services[0].txt;
   const headers = await gladys.scanNetwork('ssdp', { timeoutSeconds: 5 });
-  void [payload, txt, headers];
+  const replies: UdpBroadcastScanResult[] = await gladys.scanNetwork('udp-active-broadcast', {
+    port: 9999,
+    payload: Buffer.from('kasa-discovery-request'),
+    timeoutSeconds: 5,
+  });
+  const activeScanOptions: NetworkActiveScanOptions = { port: 20002, payload: 'AAAB' };
+  void [payload, txt, headers, replies[0].source_ip, activeScanOptions];
 
   const error = new GladysApiError(401, 'UNAUTHORIZED', 'Invalid token');
   const parts: [number, string, string] = [error.status, error.code, error.message];
