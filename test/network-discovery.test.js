@@ -94,6 +94,19 @@ describe('mediated network discovery (gladys.scanNetwork)', () => {
     assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
   });
 
+  it('should reject an empty udp-active-broadcast payload, without any HTTP request', async () => {
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.alloc(0) }),
+      /"payload" must not be empty/,
+    );
+    // A non-empty string that decodes to zero bytes (invalid base64) is empty too.
+    await assert.rejects(
+      gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: '???' }),
+      /"payload" must not be empty/,
+    );
+    assert.equal(server.getRequests('POST', '/network_discovery/scan').length, 0);
+  });
+
   it('should reject a udp-active-broadcast payload over 512 decoded bytes, without any HTTP request', async () => {
     await assert.rejects(
       gladys.scanNetwork('udp-active-broadcast', { port: 9999, payload: Buffer.alloc(513) }),
