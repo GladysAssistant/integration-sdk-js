@@ -115,7 +115,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                               |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                            |
 | `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                    |
-| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable' }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices                                                                                                                                                                               |
+| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                               |
 | `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline                                                                 |
 | `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                |
 | `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                             |
@@ -178,6 +178,34 @@ gladys.onAction('detect_protocol', async (fields) => {
 
 The resolved value — a string or a multi-language object — is displayed under the button; throwing displays the
 error message instead.
+
+#### Acting on a specific device: dynamic selects (`source: "devices"`)
+
+A `select`/`multi_select` field — in an action's `fields` or in the manifest `config_schema` — can replace its
+static `options` with `"source"`, a core-defined enum (never a URL nor an expression). V1's only value is
+**`"devices"`**: the Configuration screen populates the options with the **integration's own created devices**
+(label = device name, value = `external_id`). This is the answer to "act on THIS device" without asking the user
+to copy an identifier — the handler receives the chosen `external_id` like any other field value. Declaring
+`source` and `options` together, or an unknown `source` value, rejects the manifest.
+
+```json
+"actions": [
+  {
+    "key": "identify",
+    "label": { "en": "Identify device", "fr": "Identifier l'appareil" },
+    "fields": [
+      { "key": "device", "type": "select", "source": "devices", "label": { "en": "Device", "fr": "Appareil" }, "required": true }
+    ]
+  }
+]
+```
+
+```js
+gladys.onAction('identify', async (fields) => {
+  await blinkDevice(fields.device); // fields.device is the chosen device external_id
+  return { en: 'Device identified', fr: 'Appareil identifié' };
+});
+```
 
 ### OAuth2 cloud services
 
@@ -299,6 +327,32 @@ await gladys.publishTransports([
 This is the lightweight path for live switches (the cloud link drops → `unreachable`, the LAN comes back →
 `local`) — no need to re-publish the discovered devices. Purely declarative: the cloud/local logic stays in the
 integration, Gladys only displays it.
+
+#### Degraded state
+
+Some situations are "it works, but not in the nominal mode" — a case the three transport values cannot express.
+Field example: the device is seen by the local scan but refuses local sessions (rotated local key, another client
+holding the connection…) and the integration falls back to cloud — the user sees a perfectly normal `cloud` badge
+and nothing invites them to investigate. Flag those entries as **degraded**, with an optional multi-language
+`message` (`en` mandatory, ≤ 200 characters per language) giving the reason:
+
+```js
+await gladys.publishTransports([
+  {
+    external_id: ids.device,
+    transport: DEVICE_TRANSPORTS.CLOUD,
+    degraded: true,
+    message: { en: 'Local session refused, falling back to cloud', fr: 'Session locale refusée, bascule cloud' },
+  },
+]);
+```
+
+The badge keeps its transport color with an **orange dot** overlay, and the tooltip shows the message (the global
+summary gains a "degraded" count). Degraded is intentionally **orthogonal to the transport** — not a fourth value:
+"which channel is in use right now" and "is this the nominal state" are two different pieces of information, and
+their combination ("cloud **and** degraded") is what makes the situation diagnosable. Publishing an entry
+**without** `degraded` explicitly clears a previously published degraded state — back to nominal, no ghost orange
+dot.
 
 Declare the channels the integration supports in the manifest `transports` field (`["local"]`, `["cloud"]` or
 both). When both are declared, the Configuration screen shows a standard **"Prefer the local connection"** toggle,

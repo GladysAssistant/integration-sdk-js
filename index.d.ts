@@ -206,6 +206,19 @@ export interface DeviceTransportEntry {
   /** The device external_id. */
   external_id: string;
   transport: DeviceTransport;
+  /**
+   * Degraded state (contract C.3) — "it works, but not in the nominal mode"
+   * (e.g. local sessions refused → cloud fallback). Orthogonal to `transport`:
+   * the badge keeps its transport color with an orange dot overlay. An entry
+   * WITHOUT `degraded` clears a previously published degraded state.
+   */
+  degraded?: boolean;
+  /**
+   * Reason of the degraded state, shown in the badge tooltip (`en` mandatory,
+   * ≤ 200 characters per language). Only taken into account when `degraded`
+   * is true.
+   */
+  message?: MultiLanguageMessage;
 }
 
 /**

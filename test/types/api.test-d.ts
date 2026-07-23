@@ -112,6 +112,15 @@ const main = async (): Promise<void> => {
   const transport: DeviceTransport = DEVICE_TRANSPORTS.LOCAL;
   const entries: DeviceTransportEntry[] = [{ external_id: gladys.externalId('plug:abc'), transport }];
   await gladys.publishTransports(entries);
+  const degradedEntries: DeviceTransportEntry[] = [
+    {
+      external_id: gladys.externalId('plug:abc'),
+      transport: DEVICE_TRANSPORTS.CLOUD,
+      degraded: true,
+      message: { en: 'Local session refused, falling back to cloud', fr: 'Session locale refusée, bascule cloud' },
+    },
+  ];
+  await gladys.publishTransports(degradedEntries);
   const preferLocal: unknown = gladys.config.GLADYS_PREFER_LOCAL;
   void preferLocal;
 
