@@ -36,7 +36,13 @@ jobs:
           echo "::error::Releases must be run from ${{ github.event.repository.default_branch }}, not ${{ github.ref_name }}"
           exit 1
 
+      # Full history and tags are required: conventional-changelog reads the
+      # commits since the previous vX.Y.Z tag. With the default shallow
+      # checkout it sees a single untagged commit and generates an empty
+      # changelog section without even a compare link.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
