@@ -449,6 +449,9 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly BINARY: 'binary';
     readonly MODE: 'mode';
     readonly TARGET_TEMPERATURE: 'target-temperature';
+    readonly FAN_SPEED: 'fan-speed';
+    readonly SWING_HORIZONTAL: 'swing-horizontal';
+    readonly SWING_VERTICAL: 'swing-vertical';
   };
   readonly FAN: {
     readonly MODE: 'mode';
