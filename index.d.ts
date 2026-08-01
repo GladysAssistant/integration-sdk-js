@@ -365,6 +365,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ANGLE_SENSOR: 'angle-sensor';
   readonly BATTERY: 'battery';
   readonly BATTERY_LOW: 'battery-low';
+  readonly BATTERY_STORAGE: 'battery-storage';
   readonly BUTTON: 'button';
   readonly CAMERA: 'camera';
   readonly CUBE: 'cube';
@@ -435,6 +436,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly VACUUM_CLEANER: 'vacuum-cleaner';
   readonly TEXT: 'text';
   readonly INPUT: 'input';
+  readonly WATER_VALVE: 'water-valve';
 };
 
 /** Standard Gladys device-feature types, grouped by category (mirror of server/utils/constants.js). */
@@ -600,6 +602,14 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
   };
+  readonly BATTERY_STORAGE: {
+    readonly BATTERY_LEVEL: 'battery-level';
+    readonly CHARGE_POWER: 'charge-power';
+    readonly DISCHARGE_POWER: 'discharge-power';
+    readonly CHARGE_INDEX: 'charge-index';
+    readonly DISCHARGE_INDEX: 'discharge-index';
+    readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
+  };
   readonly TELEINFORMATION: {
     readonly BINARY: 'binary';
     readonly EAST: 'east';
@@ -731,6 +741,15 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly LIQUID_LEVEL_PERCENT: 'liquid-level-percent';
     readonly LIQUID_DEPTH: 'liquid-depth';
   };
+  readonly WATER_VALVE: {
+    readonly CURRENT_DEVICE_STATUS: 'current-device-status';
+    readonly FLOW: 'flow';
+    readonly AUTO_CLOSE_WHEN_WATER_SHORTAGE: 'auto-close-when-water-shortage';
+    readonly VALVE_WORK_STATE: 'valve-work-state';
+    readonly REAL_TIME_IRRIGATION_DURATION: 'real-time-irrigation-duration';
+    readonly REAL_TIME_IRRIGATION_VOLUME: 'real-time-irrigation-volume';
+    readonly DAILY_IRRIGATION_VOLUME: 'daily-irrigation-volume';
+  };
   readonly ELECTRICAL_VEHICLE_BATTERY: {
     readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
     readonly BATTERY_LEVEL: 'battery-level';
@@ -834,6 +853,7 @@ export declare const DEVICE_FEATURE_UNITS: {
   readonly LITER: 'liter';
   readonly MILLILITER: 'milliliter';
   readonly CUBIC_METER: 'cubicmeter';
+  readonly CUBIC_METER_PER_HOUR: 'cubic-meter-per-hour';
   readonly EURO: 'euro';
   readonly DOLLAR: 'dollar';
   readonly BITCOIN: 'bitcoin';
