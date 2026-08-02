@@ -378,6 +378,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly DATARATE: 'datarate';
   readonly DEVICE_TEMPERATURE_SENSOR: 'device-temperature-sensor';
   readonly DISTANCE_SENSOR: 'distance-sensor';
+  readonly DOORBELL: 'doorbell';
   readonly DURATION: 'duration';
   readonly ELECTRICAL_VEHICLE_BATTERY: 'electrical-vehicle-battery';
   readonly ELECTRICAL_VEHICLE_CHARGE: 'electrical-vehicle-charge';
@@ -482,6 +483,9 @@ export declare const DEVICE_FEATURE_TYPES: {
   readonly CAMERA: {
     readonly IMAGE: 'image';
   };
+  readonly DOORBELL: {
+    readonly RING: 'ring';
+  };
   readonly SIREN: {
     readonly BINARY: 'binary';
     readonly LMH_VOLUME: 'lmh_volume';
@@ -523,6 +527,9 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly BINARY: 'binary';
     readonly MODE: 'mode';
     readonly TARGET_TEMPERATURE: 'target-temperature';
+    readonly FAN_SPEED: 'fan-speed';
+    readonly SWING_HORIZONTAL: 'swing-horizontal';
+    readonly SWING_VERTICAL: 'swing-vertical';
   };
   readonly FAN: {
     readonly MODE: 'mode';

@@ -45,6 +45,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.LIGHT, 'light');
     assert.equal(DEVICE_FEATURE_CATEGORIES.BATTERY_STORAGE, 'battery-storage');
     assert.equal(DEVICE_FEATURE_CATEGORIES.WATER_VALVE, 'water-valve');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.DOORBELL, 'doorbell');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -54,6 +55,10 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_VALVE.FLOW, 'flow');
+    assert.equal(DEVICE_FEATURE_TYPES.DOORBELL.RING, 'ring');
+    assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED, 'fan-speed');
+    assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL, 'swing-horizontal');
+    assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL, 'swing-vertical');
   });
 
   it('should expose the canonical unit strings', () => {
