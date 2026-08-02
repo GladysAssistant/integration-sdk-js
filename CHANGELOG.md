@@ -1,3 +1,9 @@
+## [0.10.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.9.0...v0.10.0) (2026-08-02)
+
+### Features
+
+* resync device constants with Gladys (battery-storage, water-valve) ([#18](https://github.com/GladysAssistant/integration-sdk-js/issues/18)) ([88de117](https://github.com/GladysAssistant/integration-sdk-js/commit/88de1170a7e5f87be660727fde9914fe94338644))
+* resync device constants with Gladys (doorbell, AC fan speed and swing) ([#20](https://github.com/GladysAssistant/integration-sdk-js/issues/20)) ([313d44a](https://github.com/GladysAssistant/integration-sdk-js/commit/313d44aec4a3ba3cc81cb5ec8915f898009c0feb))
 ## [0.9.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.8.0...v0.9.0) (2026-07-23)
 
 ### Features
