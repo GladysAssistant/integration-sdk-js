@@ -437,11 +437,14 @@ gladys.onWeatherGet(async ({ latitude, longitude, language, units }) => {
     uv_index: 3,
     sunrise: data.current.sunrise,
     sunset: data.current.sunset,
+    is_day: data.current.isDay, // strict boolean; drives the day/night icon variant
     // Forecasts (≤ 24 hours, ≤ 8 days kept by Gladys):
     hours: data.hours.map((h) => ({ temperature: h.temp, weather: toCondition(h), datetime: h.time })),
     days: data.days.map((d) => ({ temperature_min: d.min, temperature_max: d.max, datetime: d.date })),
     // CAP-style alerts (≤ 10; Météo France vigilance: yellow → moderate, orange → severe, red → extreme):
-    alerts: [{ severity: WEATHER_ALERT_SEVERITIES.SEVERE, event: 'Orages violents' }],
+    alerts: [
+      { severity: WEATHER_ALERT_SEVERITIES.SEVERE, event: 'Orages violents', type: WEATHER_ALERT_TYPES.THUNDERSTORM },
+    ],
   };
 });
 ```
@@ -451,9 +454,17 @@ The contract, point by point:
 - **`units` is the requesting user's preference** — `'metric'` (°C, m/s, hPa, mm, km) or `'us'` (°F, mph, in,
   mi): return values in that unit system. Percentages (`humidity`, `cloud_cover`, `precipitation_probability`)
   are always 0-100, never fractional.
-- **`weather` is a condition of the pivot enum** (`WEATHER_CONDITIONS`): `clear` | `cloud` | `fog` | `drizzle` |
-  `rain` | `sleet` | `snow` | `thunderstorm` | `wind` | `night` | `unknown` — map your provider's codes to it;
-  anything else is coerced to `unknown` by the core (neutral icon).
+- **`weather` is a condition of the pivot enum** (`WEATHER_CONDITIONS`): `clear` | `partly-cloudy` | `cloud` |
+  `fog` | `drizzle` | `rain` | `pouring` | `sleet` | `hail` | `snow` | `thunderstorm` | `wind` | `night` |
+  `unknown` — map your provider's codes to it; anything else is coerced to `unknown` by the core (neutral icon).
+- **`is_day` carries the day/night signal** (optional strict boolean on the current conditions and each `hours`
+  entry — anything else is dropped, never coerced; absent → rendered as day): `weather` keeps the meteorology,
+  `is_day` drives the day/night rendering variant. The `night` condition stays accepted for compatibility but is
+  **deprecated for providers** — a rainy night is `weather: 'rain', is_day: false`, not `'night'`.
+- **Alerts can carry a phenomenon `type`** (`WEATHER_ALERT_TYPES`): `wind` | `rain` | `flood` | `thunderstorm` |
+  `snow` | `heat` | `cold` | `avalanche` | `coastal` | `fog` — so the core can translate and iconify the alert
+  where the free-text `event` cannot. Optional metadata: an invalid `type` is dropped by the core, the alert is
+  kept and rendered from its `event` text alone.
 - **The ack is awaited under 15 s** (not the standard 5 s), so a fresh third-party API call fits. Throwing —
   provider not configured, API down — acks the command as failed, and the Gladys provider loop falls through to
   the next available provider.

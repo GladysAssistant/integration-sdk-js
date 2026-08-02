@@ -1,7 +1,12 @@
 const assert = require('node:assert/strict');
 const { afterEach, beforeEach, describe, it } = require('node:test');
 
-const { WEATHER_CONDITIONS, WEATHER_ALERT_SEVERITIES, WEBSOCKET_MESSAGE_TYPES } = require('../lib');
+const {
+  WEATHER_CONDITIONS,
+  WEATHER_ALERT_SEVERITIES,
+  WEATHER_ALERT_TYPES,
+  WEBSOCKET_MESSAGE_TYPES,
+} = require('../lib');
 const { FakeGladysServer } = require('./helpers/fake-gladys-server');
 const { createClient } = require('./helpers/create-client');
 
@@ -31,12 +36,14 @@ describe('weather integrations (contract B.18)', () => {
         datetime: '2026-08-01T12:00:00.000Z',
         humidity: 80,
         wind_speed: 4.2,
+        is_day: true,
         hours: [
           {
             temperature: 20.1,
             weather: WEATHER_CONDITIONS.DRIZZLE,
             datetime: '2026-08-01T13:00:00.000Z',
             precipitation_probability: 60,
+            is_day: false,
           },
         ],
         days: [
@@ -44,13 +51,14 @@ describe('weather integrations (contract B.18)', () => {
             temperature_min: 14,
             temperature_max: 24,
             datetime: '2026-08-02T00:00:00.000Z',
-            weather: WEATHER_CONDITIONS.CLEAR,
+            weather: WEATHER_CONDITIONS.PARTLY_CLOUDY,
           },
         ],
         alerts: [
           {
             severity: WEATHER_ALERT_SEVERITIES.SEVERE,
             event: 'Orages violents',
+            type: WEATHER_ALERT_TYPES.THUNDERSTORM,
             start: '2026-08-01T16:00:00.000Z',
             end: '2026-08-01T22:00:00.000Z',
           },
@@ -118,11 +126,14 @@ describe('weather integrations (contract B.18)', () => {
     it('should expose the condition enum of the pivot weather format', () => {
       assert.deepEqual(Object.values(WEATHER_CONDITIONS), [
         'clear',
+        'partly-cloudy',
         'cloud',
         'fog',
         'drizzle',
         'rain',
+        'pouring',
         'sleet',
+        'hail',
         'snow',
         'thunderstorm',
         'wind',
@@ -133,6 +144,21 @@ describe('weather integrations (contract B.18)', () => {
 
     it('should expose the CAP-style alert severities', () => {
       assert.deepEqual(Object.values(WEATHER_ALERT_SEVERITIES), ['minor', 'moderate', 'severe', 'extreme']);
+    });
+
+    it('should expose the alert phenomenon types', () => {
+      assert.deepEqual(Object.values(WEATHER_ALERT_TYPES), [
+        'wind',
+        'rain',
+        'flood',
+        'thunderstorm',
+        'snow',
+        'heat',
+        'cold',
+        'avalanche',
+        'coastal',
+        'fog',
+      ]);
     });
 
     it('should expose the weather.get message type', () => {

@@ -10,6 +10,7 @@ export const {
   DEVICE_TRANSPORTS,
   WEATHER_CONDITIONS,
   WEATHER_ALERT_SEVERITIES,
+  WEATHER_ALERT_TYPES,
   createLogger,
   logger,
 } = sdk;

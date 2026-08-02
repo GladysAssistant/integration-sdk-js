@@ -230,10 +230,25 @@ export interface LinkedContact {
 
 /**
  * Conditions of the pivot weather format (contract B.18). Anything else is
- * coerced to 'unknown' by the Gladys core.
+ * coerced to 'unknown' by the Gladys core. 'night' is deprecated for
+ * providers: send the real condition plus `is_day: false` instead (a rainy
+ * night stays 'rain').
  */
 export type WeatherCondition =
-  'clear' | 'cloud' | 'fog' | 'drizzle' | 'rain' | 'sleet' | 'snow' | 'thunderstorm' | 'wind' | 'night' | 'unknown';
+  | 'clear'
+  | 'partly-cloudy'
+  | 'cloud'
+  | 'fog'
+  | 'drizzle'
+  | 'rain'
+  | 'pouring'
+  | 'sleet'
+  | 'hail'
+  | 'snow'
+  | 'thunderstorm'
+  | 'wind'
+  | 'night'
+  | 'unknown';
 
 /**
  * CAP-style severity of a weather alert (contract B.18) — Common Alerting
@@ -241,6 +256,18 @@ export type WeatherCondition =
  * moderate, orange → severe, red → extreme).
  */
 export type WeatherAlertSeverity = 'minor' | 'moderate' | 'severe' | 'extreme';
+
+/**
+ * Phenomenon type of a weather alert (contract B.18), generalized from the
+ * Météo France vigilance phenomena, the MeteoAlarm awareness types and the
+ * NWS event catalog (vent violent → wind, pluie-inondation → rain, orages →
+ * thunderstorm, inondation → flood, neige-verglas → snow, canicule → heat,
+ * grand froid → cold, avalanches → avalanche, vagues-submersion → coastal).
+ * Optional metadata: an invalid type is dropped by the core, the alert is
+ * kept and rendered from its `event` text alone.
+ */
+export type WeatherAlertType =
+  'wind' | 'rain' | 'flood' | 'thunderstorm' | 'snow' | 'heat' | 'cold' | 'avalanche' | 'coastal' | 'fog';
 
 /** A date of the pivot weather format: ISO string, timestamp or Date. */
 export type WeatherDate = string | number | Date;
@@ -281,6 +308,11 @@ export interface WeatherHourForecast {
   /** Percentage, 0-100. */
   precipitation_probability?: number;
   uv_index?: number;
+  /**
+   * Day/night rendering variant (strict boolean: anything else is dropped by
+   * the core, never coerced). Absent → rendered as day.
+   */
+  is_day?: boolean;
 }
 
 /**
@@ -313,6 +345,12 @@ export interface WeatherAlert {
   severity: WeatherAlertSeverity;
   /** Short name of the event (≤ 100 characters), e.g. 'Orages violents'. */
   event: string;
+  /**
+   * Phenomenon type, so the core can translate and iconify the alert. An
+   * invalid type is dropped by the core; the alert is kept and rendered
+   * from its `event` text alone.
+   */
+  type?: WeatherAlertType;
   /** Longer description (≤ 2000 characters). */
   description?: string;
   start?: WeatherDate;
@@ -348,6 +386,13 @@ export interface WeatherPayload {
   uv_index?: number;
   sunrise?: WeatherDate;
   sunset?: WeatherDate;
+  /**
+   * Day/night rendering variant (strict boolean: anything else is dropped by
+   * the core, never coerced). Absent → rendered as day. `weather` keeps the
+   * meteorology, `is_day` drives the day/night icon variant — preferred over
+   * the deprecated 'night' condition.
+   */
+  is_day?: boolean;
   hours?: WeatherHourForecast[];
   days?: WeatherDayForecast[];
   alerts?: WeatherAlert[];
@@ -1066,14 +1111,18 @@ export declare const DEVICE_TRANSPORTS: {
 /** Conditions of the pivot weather format (contract B.18). */
 export declare const WEATHER_CONDITIONS: {
   readonly CLEAR: 'clear';
+  readonly PARTLY_CLOUDY: 'partly-cloudy';
   readonly CLOUD: 'cloud';
   readonly FOG: 'fog';
   readonly DRIZZLE: 'drizzle';
   readonly RAIN: 'rain';
+  readonly POURING: 'pouring';
   readonly SLEET: 'sleet';
+  readonly HAIL: 'hail';
   readonly SNOW: 'snow';
   readonly THUNDERSTORM: 'thunderstorm';
   readonly WIND: 'wind';
+  /** Deprecated for providers: send the real condition + `is_day: false`. */
   readonly NIGHT: 'night';
   readonly UNKNOWN: 'unknown';
 };
@@ -1084,6 +1133,20 @@ export declare const WEATHER_ALERT_SEVERITIES: {
   readonly MODERATE: 'moderate';
   readonly SEVERE: 'severe';
   readonly EXTREME: 'extreme';
+};
+
+/** Phenomenon types of the weather alerts (contract B.18). */
+export declare const WEATHER_ALERT_TYPES: {
+  readonly WIND: 'wind';
+  readonly RAIN: 'rain';
+  readonly FLOOD: 'flood';
+  readonly THUNDERSTORM: 'thunderstorm';
+  readonly SNOW: 'snow';
+  readonly HEAT: 'heat';
+  readonly COLD: 'cold';
+  readonly AVALANCHE: 'avalanche';
+  readonly COASTAL: 'coastal';
+  readonly FOG: 'fog';
 };
 
 /**

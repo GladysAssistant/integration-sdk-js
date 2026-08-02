@@ -29,8 +29,10 @@ import {
   OutgoingMessage,
   UdpBroadcastScanResult,
   WEATHER_ALERT_SEVERITIES,
+  WEATHER_ALERT_TYPES,
   WEATHER_CONDITIONS,
   WeatherAlert,
+  WeatherAlertType,
   WeatherCondition,
   WeatherDayForecast,
   WeatherGetOptions,
@@ -172,23 +174,26 @@ const main = async (): Promise<void> => {
       weather: WEATHER_CONDITIONS.DRIZZLE,
       datetime: '2026-08-01T13:00:00.000Z',
       precipitation_probability: 60,
+      is_day: false,
     };
     const day: WeatherDayForecast = {
       temperature_min: 14,
       temperature_max: 24,
       datetime: new Date(),
-      weather: 'clear',
+      weather: WEATHER_CONDITIONS.PARTLY_CLOUDY,
       sunrise: new Date(),
       sunset: new Date(),
     };
+    const alertType: WeatherAlertType = WEATHER_ALERT_TYPES.THUNDERSTORM;
     const alert: WeatherAlert = {
       severity: WEATHER_ALERT_SEVERITIES.SEVERE,
       event: 'Orages violents',
+      type: alertType,
       description: 'Vigilance orange',
       start: new Date(),
       end: new Date(),
     };
-    const condition: WeatherCondition = units === 'metric' ? WEATHER_CONDITIONS.RAIN : 'clear';
+    const condition: WeatherCondition = units === 'metric' ? WEATHER_CONDITIONS.POURING : 'hail';
     return {
       temperature: 21.5,
       weather: condition,
@@ -198,6 +203,7 @@ const main = async (): Promise<void> => {
       wind_speed: 4.2,
       uv_index: 3,
       sunrise: '2026-08-01T04:30:00.000Z',
+      is_day: true,
       hours: [hour],
       days: [day],
       alerts: [alert],
