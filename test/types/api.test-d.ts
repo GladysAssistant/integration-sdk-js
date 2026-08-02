@@ -28,6 +28,14 @@ import {
   NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
+  WEATHER_ALERT_SEVERITIES,
+  WEATHER_CONDITIONS,
+  WeatherAlert,
+  WeatherCondition,
+  WeatherDayForecast,
+  WeatherGetOptions,
+  WeatherHourForecast,
+  WeatherPayload,
   WebhookRequest,
   WebhooksInfo,
   WebhookSyncResponse,
@@ -156,6 +164,47 @@ const main = async (): Promise<void> => {
   const webhookAvailable: boolean = webhooksInfo.available;
   const webhookType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEBHOOK_REQUEST;
   void [webhookAvailable, webhookType];
+
+  gladys.onWeatherGet(async (options: WeatherGetOptions): Promise<WeatherPayload> => {
+    const units: 'metric' | 'us' = options.units;
+    const hour: WeatherHourForecast = {
+      temperature: 20.1,
+      weather: WEATHER_CONDITIONS.DRIZZLE,
+      datetime: '2026-08-01T13:00:00.000Z',
+      precipitation_probability: 60,
+    };
+    const day: WeatherDayForecast = {
+      temperature_min: 14,
+      temperature_max: 24,
+      datetime: new Date(),
+      weather: 'clear',
+      sunrise: new Date(),
+      sunset: new Date(),
+    };
+    const alert: WeatherAlert = {
+      severity: WEATHER_ALERT_SEVERITIES.SEVERE,
+      event: 'Orages violents',
+      description: 'Vigilance orange',
+      start: new Date(),
+      end: new Date(),
+    };
+    const condition: WeatherCondition = units === 'metric' ? WEATHER_CONDITIONS.RAIN : 'clear';
+    return {
+      temperature: 21.5,
+      weather: condition,
+      datetime: new Date(),
+      apparent_temperature: 20.9,
+      humidity: 80,
+      wind_speed: 4.2,
+      uv_index: 3,
+      sunrise: '2026-08-01T04:30:00.000Z',
+      hours: [hour],
+      days: [day],
+      alerts: [alert],
+    };
+  });
+  const weatherType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET;
+  void weatherType;
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });
