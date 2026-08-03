@@ -929,6 +929,7 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     OAUTH_CALLBACK: string;
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
+    TTS_SYNTHESIZE: string;
     MESSAGE_SEND: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
@@ -1191,6 +1192,19 @@ export declare class GladysIntegration extends EventEmitter {
    * identity never reach the handler.
    */
   onSendMessage(callback: (contact: MessageContact, message: OutgoingMessage) => void | Promise<void>): void;
+
+  /**
+   * Handler called when Gladys asks a TTS provider integration (manifest
+   * `type: "tts"`, contract B.20) to synthesize a text — a scene announcement,
+   * or the voice-assistant answer (auto-acked). Synthesize and resolve the
+   * audio as a `<content_type>;base64,...` data-URI (`audio/mpeg` |
+   * `audio/wav` | `audio/ogg` | `audio/aac`, ≤ 5 MB decoded): it is acked
+   * back as `data.audio`, awaited under 30 s (not the standard 5 s) so a
+   * local synthesis fits. `language` is a best-effort hint ('fr'…): the
+   * user's language for the voice assistant, `null` in scenes. `text` arrives
+   * already capped at 2000 characters by Gladys.
+   */
+  onTtsSynthesize(callback: (text: string, language: string | null) => string | Promise<string>): void;
 
   /**
    * Handler of ONE webhook declared in the manifest `webhooks` field

@@ -73,6 +73,8 @@ const main = async (): Promise<void> => {
 
   gladys.onGetImage(async (device: Device) => `image/jpg;base64,${device.external_id}`);
 
+  gladys.onTtsSynthesize(async (text: string, language: string | null) => `audio/mpeg;base64,${text}${language ?? ''}`);
+
   gladys.onConfigUpdated(async (config: IntegrationConfig) => {
     await gladys.setConfig({ last_seen_config: JSON.stringify(config) });
   });
