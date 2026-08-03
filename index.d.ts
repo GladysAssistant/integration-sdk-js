@@ -351,10 +351,26 @@ export interface WeatherAlert {
    * from its `event` text alone.
    */
   type?: WeatherAlertType;
-  /** Longer description (≤ 2000 characters). */
+  /** Longer description (≤ 5000 characters — CAP descriptions run long). */
   description?: string;
   start?: WeatherDate;
   end?: WeatherDate;
+}
+
+/**
+ * Metadata of one provider image of the pivot weather format (contract
+ * B.18: vigilance map, rain radar, satellite view… — ≤ 3 kept by Gladys).
+ * Metadata only: the bytes travel on demand through the onWeatherGetImage
+ * handler, never in the weather payload.
+ */
+export interface WeatherImage {
+  /** Image key, matching `^[a-z0-9][a-z0-9-]{0,31}$` — unique per payload. */
+  key: string;
+  /**
+   * Display label of the image, keyed by language code (values ≤ 50
+   * characters). Absent → the widget shows the raw key.
+   */
+  label?: Record<string, string>;
 }
 
 /**
@@ -396,6 +412,11 @@ export interface WeatherPayload {
   hours?: WeatherHourForecast[];
   days?: WeatherDayForecast[];
   alerts?: WeatherAlert[];
+  /**
+   * Provider images declared as metadata (≤ 3): the bytes are fetched on
+   * demand through onWeatherGetImage, never carried in the payload.
+   */
+  images?: WeatherImage[];
 }
 
 /**
@@ -1093,6 +1114,8 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
     WEATHER_GET: string;
+    WEATHER_GET_IMAGE: string;
+    WEATHER_REFRESH: string;
     MESSAGE_SEND: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
@@ -1409,6 +1432,29 @@ export declare class GladysIntegration extends EventEmitter {
    * falls through to the next provider.
    */
   onWeatherGet(callback: (options: WeatherGetOptions) => WeatherPayload | Promise<WeatherPayload>): void;
+
+  /**
+   * Handler called when Gladys asks a weather integration for one of the
+   * provider images declared in the pivot's `images` metadata (contract
+   * B.18: vigilance map, rain radar… — auto-acked). Registered once for all
+   * keys; resolve the RAW base64 (no `data:` URI prefix) of the requested
+   * image — a PNG or JPEG of at most 500 KB decoded (magic numbers and size
+   * checked by the core, which caches the validated image 10 minutes and
+   * serves it from its own origin). The ack is awaited under 15 s (not the
+   * standard 5 s) so a fresh fetch at the provider fits.
+   */
+  onWeatherGetImage(callback: (key: string) => string | Promise<string>): void;
+
+  /**
+   * Send a freshness nudge to Gladys (contract B.18, weather integrations,
+   * "trigger, not data"): ask the core to re-pull the weather NOW — through
+   * the normal onWeatherGet path — and re-evaluate the weather-alert scene
+   * triggers, instead of waiting for the 30-minute scheduled check. Carries
+   * no data, expects no answer (fire-and-forget). Rate-limited by the core
+   * to 1 per minute per integration, silently dropped beyond — and dropped
+   * silently too while the WebSocket is disconnected.
+   */
+  requestWeatherRefresh(): void;
 
   /**
    * Handler of ONE webhook declared in the manifest `webhooks` field

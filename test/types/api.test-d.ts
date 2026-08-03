@@ -37,6 +37,7 @@ import {
   WeatherDayForecast,
   WeatherGetOptions,
   WeatherHourForecast,
+  WeatherImage,
   WeatherPayload,
   WebhookRequest,
   WebhooksInfo,
@@ -194,6 +195,7 @@ const main = async (): Promise<void> => {
       end: new Date(),
     };
     const condition: WeatherCondition = units === 'metric' ? WEATHER_CONDITIONS.POURING : 'hail';
+    const image: WeatherImage = { key: 'vigilance-map', label: { en: 'Vigilance map', fr: 'Carte de vigilance' } };
     return {
       temperature: 21.5,
       weather: condition,
@@ -207,10 +209,15 @@ const main = async (): Promise<void> => {
       hours: [hour],
       days: [day],
       alerts: [alert],
+      images: [image],
     };
   });
+  gladys.onWeatherGetImage(async (key: string) => `iVBORw0KGgo${key}`);
+  gladys.requestWeatherRefresh();
   const weatherType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET;
-  void weatherType;
+  const weatherImageType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE;
+  const weatherRefreshType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_REFRESH;
+  void [weatherType, weatherImageType, weatherRefreshType];
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });

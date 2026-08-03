@@ -63,6 +63,7 @@ describe('weather integrations (contract B.18)', () => {
             end: '2026-08-01T22:00:00.000Z',
           },
         ],
+        images: [{ key: 'vigilance-map', label: { en: 'Vigilance map', fr: 'Carte de vigilance' } }],
       };
       gladys.onWeatherGet(async (options) => {
         requests.push(options);
@@ -122,6 +123,55 @@ describe('weather integrations (contract B.18)', () => {
     });
   });
 
+  describe('gladys.onWeatherGetImage(callback)', () => {
+    it('should ack weather.get-image with success:true and the raw base64 in data.image', async () => {
+      const requestedKeys = [];
+      gladys.onWeatherGetImage(async (key) => {
+        requestedKeys.push(key);
+        return 'iVBORw0KGgoAAAANSUhEUg==';
+      });
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE, { message_id: 'img-1', key: 'vigilance-map' });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, {
+        message_id: 'img-1',
+        success: true,
+        data: { image: 'iVBORw0KGgoAAAANSUhEUg==' },
+      });
+      assert.deepEqual(requestedKeys, ['vigilance-map']);
+    });
+
+    it('should ack with success:false and the error message when the image fetch fails', async () => {
+      gladys.onWeatherGetImage(async () => {
+        throw new Error('radar unavailable');
+      });
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE, { message_id: 'img-2', key: 'rain-radar' });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, { message_id: 'img-2', success: false, error: 'radar unavailable' });
+    });
+
+    it('should ack with success:false "not implemented" when no handler is registered', async () => {
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE, { message_id: 'img-3', key: 'vigilance-map' });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, { message_id: 'img-3', success: false, error: 'not implemented' });
+    });
+  });
+
+  describe('gladys.requestWeatherRefresh()', () => {
+    it('should send a weather.refresh message with an empty payload', async () => {
+      await gladys.connect();
+      gladys.requestWeatherRefresh();
+      const message = await server.waitForWsMessage(EXTERNAL_INTEGRATION.WEATHER_REFRESH);
+      assert.deepEqual(message.payload, {});
+    });
+
+    it('should be dropped silently while disconnected (fire-and-forget)', () => {
+      gladys.requestWeatherRefresh();
+    });
+  });
+
   describe('weather constants (contract B.18)', () => {
     it('should expose the condition enum of the pivot weather format', () => {
       assert.deepEqual(Object.values(WEATHER_CONDITIONS), [
@@ -161,8 +211,10 @@ describe('weather integrations (contract B.18)', () => {
       ]);
     });
 
-    it('should expose the weather.get message type', () => {
+    it('should expose the weather message types', () => {
       assert.equal(EXTERNAL_INTEGRATION.WEATHER_GET, 'external-integration.weather.get');
+      assert.equal(EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE, 'external-integration.weather.get-image');
+      assert.equal(EXTERNAL_INTEGRATION.WEATHER_REFRESH, 'external-integration.weather.refresh');
     });
   });
 });
