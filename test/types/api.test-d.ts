@@ -4,6 +4,8 @@
  */
 import {
   ActionFields,
+  AiChatCompletion,
+  AiChatRequest,
   createLogger,
   Device,
   DEVICE_FEATURE_CATEGORIES,
@@ -101,6 +103,14 @@ const main = async (): Promise<void> => {
     const line: string = `${contact.id ?? ''} ${String(contact.username ?? '')}: ${message.text} ${message.file ?? ''}`;
     void line;
   });
+
+  gladys.onAiChat(async (request: AiChatRequest): Promise<AiChatCompletion> => {
+    const roles: string[] = request.messages.map((message) => message.role);
+    void [roles, request.tools, request.tool_choice, request.purpose, request.categories];
+    return { choices: [{ message: { content: 'The kitchen light is on.', tool_calls: [] } }] };
+  });
+  const aiChatType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.AI_CHAT;
+  void aiChatType;
 
   gladys.on('connected', () => {});
   gladys.on('disconnected', () => {});

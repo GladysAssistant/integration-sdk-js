@@ -229,6 +229,58 @@ export interface LinkedContact {
 }
 
 /**
+ * One message of an OpenAI-compatible chat completion request relayed to an
+ * AI provider integration (contract B.19).
+ */
+export interface AiChatRequestMessage {
+  /** e.g. 'system' | 'user' | 'assistant' | 'tool'. */
+  role: string;
+  content?: string | null;
+  tool_calls?: unknown[];
+  [key: string]: unknown;
+}
+
+/**
+ * OpenAI-compatible chat completion request relayed by Gladys to an AI
+ * provider integration (manifest `type: "ai"`, contract B.19). The `model`
+ * field is stripped by the core before relay — picking a model is the
+ * provider's job.
+ */
+export interface AiChatRequest {
+  messages: AiChatRequestMessage[];
+  /** OpenAI-compatible tool definitions, when the purpose involves tool calling. */
+  tools?: unknown[];
+  tool_choice?: string | Record<string, unknown>;
+  /** What Gladys is asking for, e.g. 'chat' | 'router' | 'digest'. */
+  purpose?: string;
+  categories?: string[];
+  [key: string]: unknown;
+}
+
+/** The message of one completion choice (contract B.19). */
+export interface AiChatCompletionMessage {
+  content?: string | null;
+  tool_calls?: unknown[];
+  [key: string]: unknown;
+}
+
+/** One choice of an OpenAI-compatible completion (contract B.19). */
+export interface AiChatCompletionChoice {
+  message: AiChatCompletionMessage;
+  [key: string]: unknown;
+}
+
+/**
+ * OpenAI-compatible completion resolved by the onAiChat handler (contract
+ * B.19). Gladys validates that `choices[0].message` is an object carrying
+ * `content` and/or `tool_calls`.
+ */
+export interface AiChatCompletion {
+  choices: AiChatCompletionChoice[];
+  [key: string]: unknown;
+}
+
+/**
  * Modes of a webhook declared in the manifest `webhooks` field (contract
  * B.17): 'fire_and_forget' — the third party only awaits an acknowledgment
  * (the Netatmo-style event stream); 'sync' — the caller awaits the
@@ -930,6 +982,7 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
     MESSAGE_SEND: string;
+    AI_CHAT: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
     WEBHOOK_UPDATED: string;
@@ -1191,6 +1244,20 @@ export declare class GladysIntegration extends EventEmitter {
    * identity never reach the handler.
    */
   onSendMessage(callback: (contact: MessageContact, message: OutgoingMessage) => void | Promise<void>): void;
+
+  /**
+   * Handler called when Gladys routes an AI request to an AI provider
+   * integration (manifest `type: "ai"`, contract B.19): the chat, the intent
+   * router and the weekly digest all funnel through it when the user selects
+   * the integration as their AI provider (auto-acked). Receives an
+   * OpenAI-compatible chat completion request (the `model` field is stripped
+   * by the core — picking one is the provider's job); resolve an
+   * OpenAI-compatible completion carrying an object `choices[0].message`.
+   * The ack is awaited under 120 s (not the standard 5 s) so reasoning
+   * models fit; throwing acks the command as failed and Gladys reports the
+   * provider unavailable — never a silent fallback to another provider.
+   */
+  onAiChat(callback: (request: AiChatRequest) => AiChatCompletion | Promise<AiChatCompletion>): void;
 
   /**
    * Handler of ONE webhook declared in the manifest `webhooks` field

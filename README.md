@@ -149,6 +149,7 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                 |
 | `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                           |
 | `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`) |
+| `onAiChat(cb)`                                                        | `(request) => Promise<object>` — AI provider integrations (`type: "ai"`): receives an OpenAI-compatible chat completion request, resolves an OpenAI-compatible completion carrying `choices[0].message` (ack awaited under 120 s, not 5 s, so reasoning models fit)                                                                  |
 | `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                          |
 | `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                    |
 
@@ -410,6 +411,40 @@ bot.on('message', async (chatId, text) => {
 Texts are limited to 4096 characters. `getContacts()` lists the linked contacts (with their linked Gladys user),
 e.g. to resynchronize the channel-side state after a restart. Requires a Gladys with communication-integrations
 support (check the `gladys_version` range of your manifest).
+
+### AI providers
+
+Integrations of manifest `type: "ai"` are **AI providers**: they serve as the AI backend of Gladys Assistant in
+place of Gladys Plus — a local Ollama, a self-hosted vLLM, any OpenAI-compatible endpoint the user chooses to
+trust. Like communication integrations, they have no Devices/Discovery screens: everything is configuration-driven
+(API URL, key, model… through the manifest `config_schema`), and the install is admin-only.
+
+The agentic loop stays in the Gladys core; the integration only answers **chat completions**. Once the user selects
+the integration as their AI provider (in the Gladys settings), every AI request — the chat, the intent router, the
+weekly digest — funnels through a single handler:
+
+```js
+gladys.onAiChat(async (request) => {
+  // request is an OpenAI-compatible chat completion request: { messages, tools?,
+  // tool_choice?, purpose?, categories? }. The `model` field is stripped by the
+  // core — picking one is the provider's job (e.g. from gladys.config).
+  const response = await fetch(`${gladys.config.api_url}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${gladys.config.api_key}` },
+    body: JSON.stringify({ ...request, model: gladys.config.model }),
+  });
+  if (!response.ok) throw new Error(`provider error ${response.status}`);
+  return response.json(); // an OpenAI-compatible completion: { choices: [{ message: { content, tool_calls? } }] }
+});
+```
+
+The resolved completion must carry an object **`choices[0].message`** (with `content` and/or `tool_calls`) — the
+SDK validates it and acks the command as failed otherwise, so a malformed completion never travels to Gladys to die
+at the contract boundary. The ack is awaited under **120 s** instead of the standard 5 s (reasoning models are
+slow, and a request can carry a full tool-calling context). Throwing acks the command as failed and Gladys reports
+the provider unavailable to the user — **never a silent fallback** to another provider: routing AI traffic is a
+privacy decision, and it stays where the user put it. Requires a Gladys with AI-provider support (check the
+`gladys_version` range of your manifest).
 
 ### Camera images
 
