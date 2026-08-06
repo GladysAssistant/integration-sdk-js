@@ -38,6 +38,12 @@ export interface DeviceFeature {
   unit?: string;
   min?: number;
   max?: number;
+  /**
+   * Resolution the physical device accepts for a setpoint, e.g. `0.5` for an
+   * air conditioner steppable by half a degree. Drives the +/- buttons of the
+   * setpoint widget; omit it to let Gladys pick its per-category default.
+   */
+  step?: number;
   read_only?: boolean;
   has_feedback?: boolean;
   keep_history?: boolean;

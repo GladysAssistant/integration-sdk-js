@@ -108,6 +108,17 @@ const main = async (): Promise<void> => {
   await gladys.connect();
 
   const devices: Device[] = await gladys.getDevices();
+  const setpoint: DeviceFeature = {
+    name: 'Target temperature',
+    external_id: gladys.externalId('ac:target-temperature'),
+    category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+    type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE,
+    unit: DEVICE_FEATURE_UNITS.CELSIUS,
+    min: 16,
+    max: 31,
+    step: 0.5,
+  };
+  const setpointStep: number | undefined = setpoint.step;
   const config: IntegrationConfig = await gladys.getConfig();
   const status = await gladys.getStatus();
   const version: string = status.gladys_version;

@@ -604,6 +604,34 @@ changed.forEach(({ id, value }) => lastValues.set(id, value));
 await gladys.publishStates(changed.map(({ id, value }) => ({ device_feature_external_id: id, state: value })));
 ```
 
+### Setpoint step
+
+A setpoint feature (`DEVICE_FEATURE_TYPES.*.TARGET_TEMPERATURE`, `AIR_CONDITIONING.TARGET_TEMPERATURE`…) can declare
+the resolution its physical device actually accepts, with `step`. It drives the `+`/`-` buttons of the setpoint
+widget in the dashboard: a unit steppable by half a degree gets `step: 0.5`, one that only takes whole degrees
+`step: 1`.
+
+```js
+{
+  name: 'Target temperature',
+  external_id: ids.feature('target-temperature'),
+  category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+  type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE,
+  unit: DEVICE_FEATURE_UNITS.CELSIUS,
+  min: 16,
+  max: 31,
+  step: 0.5, // the unit accepts half degrees — Mitsubishi, Daikin…
+  read_only: false,
+  has_feedback: true,
+}
+```
+
+`step` must be a strictly positive number; publishing anything else is a `400`. It is optional: omit it and Gladys
+falls back to its per-category default (a whole degree for air conditioning, half a degree for a thermostat) —
+declare it only when you know what the device supports, rather than guessing 1. Requires a Gladys that carries the
+per-feature step (check the `gladys_version` range of your manifest); an older Gladys ignores the field and keeps
+its category default.
+
 ### Device constants
 
 The SDK exports the canonical category / type / unit strings understood by Gladys — a verbatim mirror of
