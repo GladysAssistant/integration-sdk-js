@@ -4,6 +4,7 @@
  */
 import {
   ActionFields,
+  ContainerPortProtocol,
   createLogger,
   Device,
   DEVICE_FEATURE_CATEGORIES,
@@ -144,13 +145,16 @@ const main = async (): Promise<void> => {
 
   await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
   const containers: IntegrationContainer[] = await gladys.getContainers();
-  const hostPort: number | undefined = containers[0]?.ports[0]?.host_port;
+  const hostPort: number | null | undefined = containers[0]?.ports[0]?.host_port;
+  const portProtocol: ContainerPortProtocol | undefined = containers[0]?.ports[0]?.protocol;
+  const browsable: boolean | undefined = containers[0]?.ports[0]?.browsable;
+  const portLabel: string | undefined = containers[0]?.ports[0]?.label.en;
   await gladys.startContainer('mqtt', { env: { MQTT_PASSWORD: 's3cr3t' } });
   await gladys.startContainer('mqtt');
   await gladys.stopContainer('mqtt');
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
-  void [hostPort, oauthType];
+  void [hostPort, portProtocol, browsable, portLabel, oauthType];
 
   gladys.onWebhook('events', async (request: WebhookRequest) => {
     const line: string = `${request.method} ${request.body ?? ''} ${request.contentType ?? ''}`;
