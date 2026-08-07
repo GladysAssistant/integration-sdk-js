@@ -229,6 +229,197 @@ export interface LinkedContact {
 }
 
 /**
+ * Conditions of the pivot weather format (contract B.18). Anything else is
+ * coerced to 'unknown' by the Gladys core. 'night' is deprecated for
+ * providers: send the real condition plus `is_day: false` instead (a rainy
+ * night stays 'rain').
+ */
+export type WeatherCondition =
+  | 'clear'
+  | 'partly-cloudy'
+  | 'cloud'
+  | 'fog'
+  | 'drizzle'
+  | 'rain'
+  | 'pouring'
+  | 'sleet'
+  | 'hail'
+  | 'snow'
+  | 'thunderstorm'
+  | 'wind'
+  | 'night'
+  | 'unknown';
+
+/**
+ * CAP-style severity of a weather alert (contract B.18) — Common Alerting
+ * Protocol, never one provider's scale (Météo France vigilance: yellow →
+ * moderate, orange → severe, red → extreme).
+ */
+export type WeatherAlertSeverity = 'minor' | 'moderate' | 'severe' | 'extreme';
+
+/**
+ * Phenomenon type of a weather alert (contract B.18), generalized from the
+ * Météo France vigilance phenomena, the MeteoAlarm awareness types and the
+ * NWS event catalog (vent violent → wind, pluie-inondation → rain, orages →
+ * thunderstorm, inondation → flood, neige-verglas → snow, canicule → heat,
+ * grand froid → cold, avalanches → avalanche, vagues-submersion → coastal).
+ * Optional metadata: an invalid type is dropped by the core, the alert is
+ * kept and rendered from its `event` text alone.
+ */
+export type WeatherAlertType =
+  'wind' | 'rain' | 'flood' | 'thunderstorm' | 'snow' | 'heat' | 'cold' | 'avalanche' | 'coastal' | 'fog';
+
+/** A date of the pivot weather format: ISO string, timestamp or Date. */
+export type WeatherDate = string | number | Date;
+
+/**
+ * Unit system requested by Gladys (contract B.18): the user's preference.
+ * Return values in that system — °C, m/s, hPa, mm, km for 'metric'; °F,
+ * mph, in, mi for 'us'.
+ */
+export type WeatherUnits = 'metric' | 'us';
+
+/** Options of a weather request (contract B.18), as received by onWeatherGet. */
+export interface WeatherGetOptions {
+  latitude: number;
+  longitude: number;
+  /** Preferred language of the user, e.g. 'en', 'fr'. */
+  language: string;
+  units: WeatherUnits;
+}
+
+/** One hourly forecast entry of the pivot weather format (≤ 24 kept by Gladys). */
+export interface WeatherHourForecast {
+  temperature: number;
+  weather: WeatherCondition;
+  datetime: WeatherDate;
+  apparent_temperature?: number;
+  /** Percentage, 0-100. */
+  humidity?: number;
+  pressure?: number;
+  wind_speed?: number;
+  /** Degrees, 0-360. */
+  wind_direction?: number;
+  wind_gust?: number;
+  /** Percentage, 0-100. */
+  cloud_cover?: number;
+  /** Precipitation over the hour (mm for metric, in for us). */
+  precipitation?: number;
+  /** Percentage, 0-100. */
+  precipitation_probability?: number;
+  uv_index?: number;
+  /**
+   * Day/night rendering variant (strict boolean: anything else is dropped by
+   * the core, never coerced). Absent → rendered as day.
+   */
+  is_day?: boolean;
+}
+
+/**
+ * One daily forecast entry of the pivot weather format (≤ 8 kept by Gladys).
+ * `days` may or may not include the current day: consumers filter by
+ * calendar date — a provider never has to lead with today.
+ */
+export interface WeatherDayForecast {
+  temperature_min: number;
+  temperature_max: number;
+  datetime: WeatherDate;
+  weather?: WeatherCondition;
+  /** Percentage, 0-100. */
+  humidity?: number;
+  wind_speed?: number;
+  /** Degrees, 0-360. */
+  wind_direction?: number;
+  wind_gust?: number;
+  /** Precipitation over the day (mm for metric, in for us). */
+  precipitation?: number;
+  /** Percentage, 0-100. */
+  precipitation_probability?: number;
+  uv_index?: number;
+  sunrise?: WeatherDate;
+  sunset?: WeatherDate;
+}
+
+/** One weather alert of the pivot weather format (≤ 10 kept by Gladys). */
+export interface WeatherAlert {
+  severity: WeatherAlertSeverity;
+  /** Short name of the event (≤ 100 characters), e.g. 'Orages violents'. */
+  event: string;
+  /**
+   * Phenomenon type, so the core can translate and iconify the alert. An
+   * invalid type is dropped by the core; the alert is kept and rendered
+   * from its `event` text alone.
+   */
+  type?: WeatherAlertType;
+  /** Longer description (≤ 5000 characters — CAP descriptions run long). */
+  description?: string;
+  start?: WeatherDate;
+  end?: WeatherDate;
+}
+
+/**
+ * Metadata of one provider image of the pivot weather format (contract
+ * B.18: vigilance map, rain radar, satellite view… — ≤ 3 kept by Gladys).
+ * Metadata only: the bytes travel on demand through the onWeatherGetImage
+ * handler, never in the weather payload.
+ */
+export interface WeatherImage {
+  /** Image key, matching `^[a-z0-9][a-z0-9-]{0,31}$` — unique per payload. */
+  key: string;
+  /**
+   * Display label of the image, keyed by language code (values ≤ 50
+   * characters). Absent → the widget shows the raw key.
+   */
+  label?: Record<string, string>;
+}
+
+/**
+ * The pivot weather format resolved by onWeatherGet (contract B.18), acked
+ * back to Gladys as `data.weather`. Values must be in the requested unit
+ * system (`WeatherGetOptions.units`); percentages are 0-100. The payload is
+ * normalized and bounded by the Gladys core: unknown fields are dropped,
+ * percentages clamped, unknown conditions coerced to 'unknown', arrays
+ * capped (24 hours, 8 days, 10 alerts).
+ */
+export interface WeatherPayload {
+  temperature: number;
+  weather: WeatherCondition;
+  datetime: WeatherDate;
+  /** Feels-like temperature. */
+  apparent_temperature?: number;
+  /** Percentage, 0-100. */
+  humidity?: number;
+  pressure?: number;
+  dew_point?: number;
+  wind_speed?: number;
+  /** Degrees, 0-360. */
+  wind_direction?: number;
+  wind_gust?: number;
+  /** km for metric, mi for us. */
+  visibility?: number;
+  /** Percentage, 0-100. */
+  cloud_cover?: number;
+  uv_index?: number;
+  sunrise?: WeatherDate;
+  sunset?: WeatherDate;
+  /**
+   * Day/night rendering variant (strict boolean: anything else is dropped by
+   * the core, never coerced). Absent → rendered as day. `weather` keeps the
+   * meteorology, `is_day` drives the day/night icon variant — preferred over
+   * the deprecated 'night' condition.
+   */
+  is_day?: boolean;
+  hours?: WeatherHourForecast[];
+  days?: WeatherDayForecast[];
+  alerts?: WeatherAlert[];
+  /**
+   * Provider images declared as metadata (≤ 3): the bytes are fetched on
+   * demand through onWeatherGetImage, never carried in the payload.
+   */
+  images?: WeatherImage[];
+}
+
+/**
  * Modes of a webhook declared in the manifest `webhooks` field (contract
  * B.17): 'fire_and_forget' — the third party only awaits an acknowledgment
  * (the Netatmo-style event stream); 'sync' — the caller awaits the
@@ -929,6 +1120,9 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     OAUTH_CALLBACK: string;
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
+    WEATHER_GET: string;
+    WEATHER_GET_IMAGE: string;
+    WEATHER_REFRESH: string;
     MESSAGE_SEND: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
@@ -942,6 +1136,47 @@ export declare const DEVICE_TRANSPORTS: {
   readonly LOCAL: 'local';
   readonly CLOUD: 'cloud';
   readonly UNREACHABLE: 'unreachable';
+};
+
+/** Conditions of the pivot weather format (contract B.18). */
+export declare const WEATHER_CONDITIONS: {
+  readonly CLEAR: 'clear';
+  readonly PARTLY_CLOUDY: 'partly-cloudy';
+  readonly CLOUD: 'cloud';
+  readonly FOG: 'fog';
+  readonly DRIZZLE: 'drizzle';
+  readonly RAIN: 'rain';
+  readonly POURING: 'pouring';
+  readonly SLEET: 'sleet';
+  readonly HAIL: 'hail';
+  readonly SNOW: 'snow';
+  readonly THUNDERSTORM: 'thunderstorm';
+  readonly WIND: 'wind';
+  /** Deprecated for providers: send the real condition + `is_day: false`. */
+  readonly NIGHT: 'night';
+  readonly UNKNOWN: 'unknown';
+};
+
+/** CAP-style severities of the weather alerts (contract B.18). */
+export declare const WEATHER_ALERT_SEVERITIES: {
+  readonly MINOR: 'minor';
+  readonly MODERATE: 'moderate';
+  readonly SEVERE: 'severe';
+  readonly EXTREME: 'extreme';
+};
+
+/** Phenomenon types of the weather alerts (contract B.18). */
+export declare const WEATHER_ALERT_TYPES: {
+  readonly WIND: 'wind';
+  readonly RAIN: 'rain';
+  readonly FLOOD: 'flood';
+  readonly THUNDERSTORM: 'thunderstorm';
+  readonly SNOW: 'snow';
+  readonly HEAT: 'heat';
+  readonly COLD: 'cold';
+  readonly AVALANCHE: 'avalanche';
+  readonly COASTAL: 'coastal';
+  readonly FOG: 'fog';
 };
 
 /**
@@ -1191,6 +1426,42 @@ export declare class GladysIntegration extends EventEmitter {
    * identity never reach the handler.
    */
   onSendMessage(callback: (contact: MessageContact, message: OutgoingMessage) => void | Promise<void>): void;
+
+  /**
+   * Handler called when Gladys asks a weather integration (manifest
+   * `type: "weather"`, contract B.18) for the weather (auto-acked) — the
+   * dashboard weather widget or the chat assistant needs it. `options.units`
+   * is the requesting user's preference ('metric' or 'us'): return values in
+   * that unit system. Resolve the pivot weather format: it is acked back as
+   * `data.weather` — awaited under 15 s (not the standard 5 s) so a fresh
+   * third-party API call fits — then normalized and bounded by the Gladys
+   * core. Throwing acks the command as failed, and the Gladys provider loop
+   * falls through to the next provider.
+   */
+  onWeatherGet(callback: (options: WeatherGetOptions) => WeatherPayload | Promise<WeatherPayload>): void;
+
+  /**
+   * Handler called when Gladys asks a weather integration for one of the
+   * provider images declared in the pivot's `images` metadata (contract
+   * B.18: vigilance map, rain radar… — auto-acked). Registered once for all
+   * keys; resolve the RAW base64 (no `data:` URI prefix) of the requested
+   * image — a PNG or JPEG of at most 500 KB decoded (magic numbers and size
+   * checked by the core, which caches the validated image 10 minutes and
+   * serves it from its own origin). The ack is awaited under 15 s (not the
+   * standard 5 s) so a fresh fetch at the provider fits.
+   */
+  onWeatherGetImage(callback: (key: string) => string | Promise<string>): void;
+
+  /**
+   * Send a freshness nudge to Gladys (contract B.18, weather integrations,
+   * "trigger, not data"): ask the core to re-pull the weather NOW — through
+   * the normal onWeatherGet path — and re-evaluate the weather-alert scene
+   * triggers, instead of waiting for the 30-minute scheduled check. Carries
+   * no data, expects no answer (fire-and-forget). Rate-limited by the core
+   * to 1 per minute per integration, silently dropped beyond — and dropped
+   * silently too while the WebSocket is disconnected.
+   */
+  requestWeatherRefresh(): void;
 
   /**
    * Handler of ONE webhook declared in the manifest `webhooks` field

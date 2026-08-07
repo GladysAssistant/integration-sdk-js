@@ -119,6 +119,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline. Bidirectional channels only: a send-only channel (`messaging.receive: false`) is a 403 |
 | `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                        |
 | `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                     |
+| `requestWeatherRefresh()`                  | Weather integrations: fire-and-forget freshness nudge — asks the core to re-pull the weather NOW (through `onWeatherGet`) and re-evaluate the weather-alert scene triggers, instead of waiting for the 30-minute scheduled check. Carries no data, expects no answer; rate-limited core-side (1/min per integration, silently dropped beyond), dropped silently while disconnected                                                    |
 | `getWebhooks()`                            | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                             |
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                      |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -136,21 +137,23 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                                                                                                                          |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                 |
-| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                         |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                          |
-| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                   |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                                                                                                                              |
-| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                 |
-| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                           |
-| `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`) |
-| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                          |
-| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                    |
+| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise`                                                                                                                                                                                                                                                                                                        |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                               |
+| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                              |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                                       |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                              |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                                        |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                                 |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                                                                                                                                            |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                               |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                                         |
+| `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`)               |
+| `onWeatherGet(cb)`                                                    | `(options) => Promise<object>` — weather integrations (manifest `type: "weather"`): `options = { latitude, longitude, language, units }`; resolve the pivot weather format with values in the requested unit system (`'metric'` or `'us'`), it is acked back as `data.weather` (awaited under 15 s, not 5 s, so a fresh third-party API call fits) |
+| `onWeatherGetImage(cb)`                                               | `(key) => Promise<string>` — weather integrations: resolve the RAW base64 (no `data:` URI prefix) of a provider image declared in the pivot's `images` metadata (vigilance map, rain radar…); PNG or JPEG, ≤ 500 KB decoded, acked back as `data.image` (awaited under 15 s), validated and cached 10 minutes by the core                          |
+| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                                        |
+| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                                  |
 
 ### Manifest actions
 
@@ -410,6 +413,96 @@ bot.on('message', async (chatId, text) => {
 Texts are limited to 4096 characters. `getContacts()` lists the linked contacts (with their linked Gladys user),
 e.g. to resynchronize the channel-side state after a restart. Requires a Gladys with communication-integrations
 support (check the `gladys_version` range of your manifest).
+
+### Weather providers
+
+Weather providers (Météo France, Open-Meteo, AccuWeather…) are integrations of manifest `type: "weather"`: no
+Devices/Discovery screens (like communication channels), no devices and no states — a **dedicated provider API**.
+The integration answers the core's weather requests, and Gladys feeds the dashboard weather widget and the chat
+assistant with them. Installing a weather integration takes precedence over the built-in OpenWeather service with
+zero configuration; stopping or uninstalling it falls back automatically.
+
+Everything goes through one handler:
+
+```js
+gladys.onWeatherGet(async ({ latitude, longitude, language, units }) => {
+  const data = await fetchProviderForecast(latitude, longitude, language, units); // your provider code
+  return {
+    // Required: temperature, weather (condition), datetime.
+    temperature: data.current.temperature,
+    weather: WEATHER_CONDITIONS.RAIN,
+    datetime: new Date().toISOString(),
+    // Optional current fields, dropped when your provider lacks them:
+    apparent_temperature: data.current.feelsLike,
+    humidity: 80, // percentages are 0-100
+    wind_speed: 4.2,
+    uv_index: 3,
+    sunrise: data.current.sunrise,
+    sunset: data.current.sunset,
+    is_day: data.current.isDay, // strict boolean; drives the day/night icon variant
+    // Forecasts (≤ 24 hours, ≤ 8 days kept by Gladys):
+    hours: data.hours.map((h) => ({ temperature: h.temp, weather: toCondition(h), datetime: h.time })),
+    days: data.days.map((d) => ({ temperature_min: d.min, temperature_max: d.max, datetime: d.date })),
+    // CAP-style alerts (≤ 10; Météo France vigilance: yellow → moderate, orange → severe, red → extreme):
+    alerts: [
+      { severity: WEATHER_ALERT_SEVERITIES.SEVERE, event: 'Orages violents', type: WEATHER_ALERT_TYPES.THUNDERSTORM },
+    ],
+  };
+});
+```
+
+The contract, point by point:
+
+- **`units` is the requesting user's preference** — `'metric'` (°C, m/s, hPa, mm, km) or `'us'` (°F, mph, in,
+  mi): return values in that unit system. Percentages (`humidity`, `cloud_cover`, `precipitation_probability`)
+  are always 0-100, never fractional.
+- **`weather` is a condition of the pivot enum** (`WEATHER_CONDITIONS`): `clear` | `partly-cloudy` | `cloud` |
+  `fog` | `drizzle` | `rain` | `pouring` | `sleet` | `hail` | `snow` | `thunderstorm` | `wind` | `night` |
+  `unknown` — map your provider's codes to it; anything else is coerced to `unknown` by the core (neutral icon).
+- **`is_day` carries the day/night signal** (optional strict boolean on the current conditions and each `hours`
+  entry — anything else is dropped, never coerced; absent → rendered as day): `weather` keeps the meteorology,
+  `is_day` drives the day/night rendering variant. The `night` condition stays accepted for compatibility but is
+  **deprecated for providers** — a rainy night is `weather: 'rain', is_day: false`, not `'night'`.
+- **Alerts can carry a phenomenon `type`** (`WEATHER_ALERT_TYPES`): `wind` | `rain` | `flood` | `thunderstorm` |
+  `snow` | `heat` | `cold` | `avalanche` | `coastal` | `fog` — so the core can translate and iconify the alert
+  where the free-text `event` cannot. Optional metadata: an invalid `type` is dropped by the core, the alert is
+  kept and rendered from its `event` text alone.
+- **The ack is awaited under 15 s** (not the standard 5 s), so a fresh third-party API call fits. Throwing —
+  provider not configured, API down — acks the command as failed, and the Gladys provider loop falls through to
+  the next available provider.
+- **The payload is normalized and bounded by the core**: unknown fields are dropped, numbers must be finite,
+  dates must parse, arrays are capped (24 `hours`, 8 `days`, 10 `alerts`, 3 `images`), alert strings are
+  truncated (`event` ≤ 100 characters, `description` ≤ 5000 — CAP descriptions run long). `days` may or may not
+  include the current day — consumers filter by calendar date, a provider never has to lead with today.
+
+Two optional extensions complete the type:
+
+- **Provider images** (vigilance map, rain radar, satellite view…) — the payload only ever declares **metadata**:
+  `images` (≤ 3 entries of `{ key, label? }`, `key` matching `^[a-z0-9][a-z0-9-]{0,31}$`, `label` a
+  multi-language object with values ≤ 50 characters). The bytes travel **on demand** through `onWeatherGetImage`:
+  resolve the RAW base64 (no `data:` URI prefix) of a PNG or JPEG of at most 500 KB decoded — the core checks the
+  magic numbers and the size, caches the validated image 10 minutes per key, and serves it to the browser from
+  its own origin (the browser never loads a third-party URL).
+
+  ```js
+  gladys.onWeatherGetImage(async (key) => {
+    const png = await fetchVigilanceMap(); // your provider code, returns a Buffer
+    return png.toString('base64');
+  });
+  ```
+
+- **The freshness nudge** — Gladys evaluates its weather-alert scene triggers on a 30-minute scheduled check
+  (pulled through `onWeatherGet`, diffed on the normalized alerts). A provider that KNOWS something changed
+  upstream can do better — never by pushing data: `requestWeatherRefresh()` only means "re-pull me now". The
+  data re-enters through the audited `onWeatherGet` path; the nudge itself carries nothing (fire-and-forget,
+  rate-limited core-side to 1/min per integration, silently dropped beyond). The Météo France pattern: poll the
+  vigilance upstream, nudge on change — the scene fires seconds later instead of within 30 minutes.
+
+  ```js
+  onUpstreamVigilanceChange(() => gladys.requestWeatherRefresh());
+  ```
+
+Requires a Gladys with weather-integrations support (check the `gladys_version` range of your manifest).
 
 ### Camera images
 

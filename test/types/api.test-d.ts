@@ -28,6 +28,17 @@ import {
   NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
+  WEATHER_ALERT_SEVERITIES,
+  WEATHER_ALERT_TYPES,
+  WEATHER_CONDITIONS,
+  WeatherAlert,
+  WeatherAlertType,
+  WeatherCondition,
+  WeatherDayForecast,
+  WeatherGetOptions,
+  WeatherHourForecast,
+  WeatherImage,
+  WeatherPayload,
   WebhookRequest,
   WebhooksInfo,
   WebhookSyncResponse,
@@ -156,6 +167,57 @@ const main = async (): Promise<void> => {
   const webhookAvailable: boolean = webhooksInfo.available;
   const webhookType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEBHOOK_REQUEST;
   void [webhookAvailable, webhookType];
+
+  gladys.onWeatherGet(async (options: WeatherGetOptions): Promise<WeatherPayload> => {
+    const units: 'metric' | 'us' = options.units;
+    const hour: WeatherHourForecast = {
+      temperature: 20.1,
+      weather: WEATHER_CONDITIONS.DRIZZLE,
+      datetime: '2026-08-01T13:00:00.000Z',
+      precipitation_probability: 60,
+      is_day: false,
+    };
+    const day: WeatherDayForecast = {
+      temperature_min: 14,
+      temperature_max: 24,
+      datetime: new Date(),
+      weather: WEATHER_CONDITIONS.PARTLY_CLOUDY,
+      sunrise: new Date(),
+      sunset: new Date(),
+    };
+    const alertType: WeatherAlertType = WEATHER_ALERT_TYPES.THUNDERSTORM;
+    const alert: WeatherAlert = {
+      severity: WEATHER_ALERT_SEVERITIES.SEVERE,
+      event: 'Orages violents',
+      type: alertType,
+      description: 'Vigilance orange',
+      start: new Date(),
+      end: new Date(),
+    };
+    const condition: WeatherCondition = units === 'metric' ? WEATHER_CONDITIONS.POURING : 'hail';
+    const image: WeatherImage = { key: 'vigilance-map', label: { en: 'Vigilance map', fr: 'Carte de vigilance' } };
+    return {
+      temperature: 21.5,
+      weather: condition,
+      datetime: new Date(),
+      apparent_temperature: 20.9,
+      humidity: 80,
+      wind_speed: 4.2,
+      uv_index: 3,
+      sunrise: '2026-08-01T04:30:00.000Z',
+      is_day: true,
+      hours: [hour],
+      days: [day],
+      alerts: [alert],
+      images: [image],
+    };
+  });
+  gladys.onWeatherGetImage(async (key: string) => `iVBORw0KGgo${key}`);
+  gladys.requestWeatherRefresh();
+  const weatherType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET;
+  const weatherImageType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE;
+  const weatherRefreshType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_REFRESH;
+  void [weatherType, weatherImageType, weatherRefreshType];
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });
