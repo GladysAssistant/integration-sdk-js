@@ -124,7 +124,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                      |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                           |
 | `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                             |
-| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, assigned host ports, granted/available hardware classes                                                                                                                                                                                                                                                                                                        |
+| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, published ports (`{ container_port, protocol, host_port, label, browsable }`, `host_port: null` while none is assigned yet), granted/available hardware classes                                                                                                                                                                                                |
 | `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                |
 | `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                             |
 | `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                             |
@@ -606,6 +606,19 @@ const detector = coral.granted && coral.available ? 'edgetpu' : 'cpu'; // adapt 
 
 When the user changes the hardware grants, the affected sub-containers are recreated and `onHardwareUpdated` fires:
 regenerate the configs and (re)start what is needed.
+
+Each entry of `container.ports` mirrors the manifest declaration plus the host port Gladys allocated:
+
+```js
+// [{ container_port: 5000, protocol: 'tcp', host_port: 42115, label: { en: 'Frigate UI' }, browsable: true }]
+const [{ host_port: frigatePort }] = frigate.ports;
+```
+
+The host port is **chosen by Gladys** (a free port, persisted across recreations — never declared in the manifest),
+so read it here rather than assuming one; it is `null` as long as none has been assigned (the container has never
+started). `browsable` mirrors the manifest field: `true` (default) for a port serving a web UI — the supervision
+screen shows an "Open <label>" link — and `false` for a port a browser cannot open, e.g. a WebSocket endpoint
+waiting for devices (the OCPP case), which is shown as a plain `<label> : <host_port>` badge instead.
 
 ### Mediated network discovery
 

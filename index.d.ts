@@ -105,10 +105,25 @@ export interface PublishDiscoveredDevicesResponse extends SuccessResponse {
  */
 export type MultiLanguageMessage = { en: string } & Record<string, string>;
 
+/** Protocol of a published sub-container port. */
+export type ContainerPortProtocol = 'tcp' | 'udp';
+
 /** A published port of a sub-container, with the host port assigned by Gladys. */
 export interface ContainerPort {
   container_port: number;
-  host_port: number;
+  /** Protocol declared in the manifest, `tcp` when omitted. */
+  protocol: ContainerPortProtocol;
+  /** Host port assigned by Gladys, `null` while none has been allocated yet. */
+  host_port: number | null;
+  /** Multi-language label of the port, as declared in the manifest. */
+  label: MultiLanguageMessage;
+  /**
+   * Whether the port serves a web UI reachable from a browser. `false` (manifest
+   * `browsable: false`, e.g. a WebSocket endpoint waiting for devices) — the
+   * supervision screen shows the assigned host port as a badge, without the
+   * "Open" link.
+   */
+  browsable: boolean;
 }
 
 /** State of one requested hardware class of a sub-container (contract C.3). */

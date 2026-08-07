@@ -43,12 +43,47 @@ describe('connection status & sub-container methods', () => {
           status: 'stopped',
           desired: 'stopped',
           started_at: null,
-          ports: [{ container_port: 5000, host_port: 42115 }],
+          ports: [
+            {
+              container_port: 5000,
+              protocol: 'tcp',
+              host_port: 42115,
+              label: { en: 'Frigate UI', fr: 'Interface Frigate' },
+              browsable: true,
+            },
+          ],
           devices: [{ class: 'coral-usb', granted: true, available: true }],
         },
       ];
       const containers = await gladys.getContainers();
       assert.deepEqual(containers, server.containers);
+    });
+
+    it('should keep the browsable flag and the not-yet-assigned host port of a port', async () => {
+      // OCPP-like case: a WebSocket endpoint for devices, no web UI to open
+      server.containers = [
+        {
+          name: 'ocpp',
+          status: 'stopped',
+          desired: 'stopped',
+          started_at: null,
+          ports: [
+            {
+              container_port: 9000,
+              protocol: 'tcp',
+              host_port: null,
+              label: { en: 'OCPP WebSocket' },
+              browsable: false,
+            },
+          ],
+          devices: [],
+        },
+      ];
+      const [container] = await gladys.getContainers();
+      assert.equal(container.ports[0].browsable, false);
+      assert.equal(container.ports[0].host_port, null);
+      assert.equal(container.ports[0].protocol, 'tcp');
+      assert.deepEqual(container.ports[0].label, { en: 'OCPP WebSocket' });
     });
   });
 
