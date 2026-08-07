@@ -46,6 +46,8 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.BATTERY_STORAGE, 'battery-storage');
     assert.equal(DEVICE_FEATURE_CATEGORIES.WATER_VALVE, 'water-valve');
     assert.equal(DEVICE_FEATURE_CATEGORIES.DOORBELL, 'doorbell');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.CHARGING_STATION, 'charging-station');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.WATER_HEATER, 'water-heater');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -59,6 +61,12 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED, 'fan-speed');
     assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL, 'swing-horizontal');
     assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL, 'swing-vertical');
+    assert.equal(DEVICE_FEATURE_TYPES.CHARGING_STATION.CONNECTOR_STATUS, 'connector-status');
+    assert.equal(DEVICE_FEATURE_TYPES.CHARGING_STATION.CHARGING_STATE, 'charging-state');
+    assert.equal(DEVICE_FEATURE_TYPES.THERMOSTAT.MODE, 'mode');
+    assert.equal(DEVICE_FEATURE_TYPES.THERMOSTAT.OPERATING_STATE, 'operating-state');
+    assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.REMAINING_HOT_WATER, 'remaining-hot-water');
+    assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST, 'boost');
   });
 
   it('should expose the canonical unit strings', () => {

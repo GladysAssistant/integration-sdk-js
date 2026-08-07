@@ -582,6 +582,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly BATTERY_STORAGE: 'battery-storage';
   readonly BUTTON: 'button';
   readonly CAMERA: 'camera';
+  readonly CHARGING_STATION: 'charging-station';
   readonly CUBE: 'cube';
   readonly CURRENCY: 'currency';
   readonly CO_SENSOR: 'co-sensor';
@@ -651,6 +652,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly VACUUM_CLEANER: 'vacuum-cleaner';
   readonly TEXT: 'text';
   readonly INPUT: 'input';
+  readonly WATER_HEATER: 'water-heater';
   readonly WATER_VALVE: 'water-valve';
 };
 
@@ -696,6 +698,10 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly CAMERA: {
     readonly IMAGE: 'image';
+  };
+  readonly CHARGING_STATION: {
+    readonly CONNECTOR_STATUS: 'connector-status';
+    readonly CHARGING_STATE: 'charging-state';
   };
   readonly DOORBELL: {
     readonly RING: 'ring';
@@ -938,6 +944,8 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly THERMOSTAT: {
     readonly TARGET_TEMPERATURE: 'target-temperature';
+    readonly MODE: 'mode';
+    readonly OPERATING_STATE: 'operating-state';
   };
   readonly AIRQUALITY_SENSOR: {
     readonly AQI: 'aqi';
@@ -961,6 +969,14 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly LIQUID_STATE: 'liquid-state';
     readonly LIQUID_LEVEL_PERCENT: 'liquid-level-percent';
     readonly LIQUID_DEPTH: 'liquid-depth';
+  };
+  readonly WATER_HEATER: {
+    readonly BINARY: 'binary';
+    readonly MODE: 'mode';
+    readonly TARGET_TEMPERATURE: 'target-temperature';
+    readonly REMAINING_HOT_WATER: 'remaining-hot-water';
+    readonly HEATING: 'heating';
+    readonly BOOST: 'boost';
   };
   readonly WATER_VALVE: {
     readonly CURRENT_DEVICE_STATUS: 'current-device-status';
