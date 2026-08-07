@@ -48,7 +48,7 @@ describe('connection status & sub-container methods', () => {
               container_port: 5000,
               protocol: 'tcp',
               host_port: 42115,
-              label: { en: 'Frigate UI' },
+              label: { en: 'Frigate UI', fr: 'Interface Frigate' },
               name: 'frigate_ui',
               browsable: true,
             },
@@ -60,7 +60,8 @@ describe('connection status & sub-container methods', () => {
       assert.deepEqual(containers, server.containers);
     });
 
-    it('should expose the port name and a null host port while none is assigned', async () => {
+    it('should keep the browsable flag and the not-yet-assigned host port of a port', async () => {
+      // OCPP-like case: a WebSocket endpoint for devices, no web UI to open
       server.containers = [
         {
           name: 'ocpp',
@@ -72,7 +73,36 @@ describe('connection status & sub-container methods', () => {
               container_port: 9000,
               protocol: 'tcp',
               host_port: null,
-              label: { en: 'OCPP endpoint' },
+              label: { en: 'OCPP WebSocket' },
+              name: 'ocpp',
+              browsable: false,
+            },
+          ],
+          devices: [],
+        },
+      ];
+      const [container] = await gladys.getContainers();
+      assert.equal(container.ports[0].browsable, false);
+      assert.equal(container.ports[0].host_port, null);
+      assert.equal(container.ports[0].protocol, 'tcp');
+      assert.deepEqual(container.ports[0].label, { en: 'OCPP WebSocket' });
+    });
+
+    it('should expose the manifest port name, null when the manifest declares none', async () => {
+      // the name is what the {{port:<name>}} placeholder of the section texts
+      // resolves against — a port declared without one comes back as null
+      server.containers = [
+        {
+          name: 'ocpp',
+          status: 'running',
+          desired: 'running',
+          started_at: '2026-08-07T08:00:00.000Z',
+          ports: [
+            {
+              container_port: 9000,
+              protocol: 'tcp',
+              host_port: 42115,
+              label: { en: 'OCPP WebSocket' },
               name: 'ocpp',
               browsable: false,
             },
@@ -85,13 +115,13 @@ describe('connection status & sub-container methods', () => {
               browsable: true,
             },
           ],
+          devices: [],
         },
       ];
       const [container] = await gladys.getContainers();
       assert.equal(container.ports[0].name, 'ocpp');
-      assert.equal(container.ports[0].host_port, null);
+      assert.equal(container.ports[0].host_port, 42115);
       assert.equal(container.ports[1].name, null);
-      assert.equal(container.ports[1].host_port, 42116);
     });
   });
 
