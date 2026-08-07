@@ -144,7 +144,9 @@ const main = async (): Promise<void> => {
 
   await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
   const containers: IntegrationContainer[] = await gladys.getContainers();
-  const hostPort: number | undefined = containers[0]?.ports[0]?.host_port;
+  const hostPort: number | null | undefined = containers[0]?.ports[0]?.host_port;
+  const portName: string | null | undefined = containers[0]?.ports[0]?.name;
+  void portName;
   await gladys.startContainer('mqtt', { env: { MQTT_PASSWORD: 's3cr3t' } });
   await gladys.startContainer('mqtt');
   await gladys.stopContainer('mqtt');

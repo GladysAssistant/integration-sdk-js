@@ -107,8 +107,26 @@ export type MultiLanguageMessage = { en: string } & Record<string, string>;
 
 /** A published port of a sub-container, with the host port assigned by Gladys. */
 export interface ContainerPort {
+  /** Port declared in the manifest, inside the container. */
   container_port: number;
-  host_port: number;
+  /** Transport protocol declared in the manifest: 'tcp' (default) or 'udp'. */
+  protocol: string;
+  /**
+   * Host port assigned by Gladys — never declared by the manifest. `null`
+   * while none is assigned yet (the sub-container has never been started).
+   */
+  host_port: number | null;
+  /** Names the "Open" link of the UI, or the badge when the port is not browsable. */
+  label: MultiLanguageMessage;
+  /**
+   * Stable identifier of the port declared in the manifest (`[a-z0-9_]{2,20}`,
+   * unique across the whole manifest), `null` when the manifest declares none.
+   * It makes the assigned host port referenceable by the `{{port:<name>}}`
+   * placeholder of the manifest section texts (contract C.1).
+   */
+  name: string | null;
+  /** Whether the UI offers an "Open" link for the port (default true). */
+  browsable: boolean;
 }
 
 /** State of one requested hardware class of a sub-container (contract C.3). */
