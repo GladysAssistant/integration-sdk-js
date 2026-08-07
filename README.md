@@ -124,7 +124,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                      |
 | `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                           |
 | `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                             |
-| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, published ports (`{ container_port, protocol, host_port, label, browsable }`, `host_port: null` while none is assigned yet), granted/available hardware classes                                                                                                                                                                                                |
+| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, published ports (`{ container_port, protocol, host_port, label, name, browsable }`, `host_port: null` while none is assigned yet), granted/available hardware classes                                                                                                                                                                                          |
 | `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                |
 | `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                             |
 | `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                             |
@@ -242,6 +242,55 @@ displayed** next to the label — no markdown, no HTML (declarative UI principle
 
 A section stores **no value**: its key never appears in `gladys.config`, `getConfig()`, `onConfigUpdated` values or
 an action handler's `fields`, and sending it through `setConfig` is rejected by the host API.
+
+#### Placeholders in section texts: `{{gladys_host}}` and `{{port:<name>}}`
+
+Some integrations have to show the user a URL pointing **at Gladys itself** — the OCPP case: "configure your charge
+point to `ws://<gladys>:<port>`". The server cannot build that address reliably (it does not know which LAN address
+the user reaches Gladys by: several interfaces, reverse proxy, VPN), but the **browser knows it by construction**.
+So the `label` and `description` of a `section` may embed two plain-text tokens, substituted by the Gladys frontend
+at render time — exact syntax, no space inside the braces, no expression and no injected code (declarative UI
+principle):
+
+| Token             | Substituted with                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `{{gladys_host}}` | The hostname of the address the browser currently uses to reach Gladys                            |
+| `{{port:<name>}}` | The host port Gladys assigned to the declared sub-container port carrying that `name` (see below) |
+
+```json
+"containers": [
+  {
+    "name": "ocpp",
+    "docker_image": "ghcr.io/acme/ocpp:1.2.0",
+    "ports": [{ "container_port": 9000, "name": "ocpp", "label": { "en": "OCPP endpoint" }, "browsable": false }]
+  }
+],
+"config_schema": [
+  {
+    "key": "charge_point",
+    "type": "section",
+    "label": { "en": "Connect your charge point" },
+    "description": {
+      "en": "Point your charge point to ws://{{gladys_host}}:{{port:ocpp}}/",
+      "fr": "Pointez votre borne vers ws://{{gladys_host}}:{{port:ocpp}}/"
+    }
+  }
+]
+```
+
+Rules to know when writing the manifest:
+
+- a `{{port:<name>}}` that references a name declared **nowhere** in the manifest **rejects the manifest** (indexer
+  and server, like any structural error) — an unknown reference would sit unresolved on screen forever;
+- `{{gladys_host}}` works in every section the engine renders (`config_schema`, action `fields`, `contact_schema`),
+  since the browser resolves it whatever the user's role; `{{port:<name>}}` is **refused in `contact_schema`**: that
+  per-user block is the one screen a non-admin reaches, and their reduced view carries no container state, so the
+  token would resolve for an admin and stay raw for everyone else;
+- a valid `{{port:<name>}}` whose port has **no assigned host port yet** (sub-container never started) is left
+  **as-is** on screen — honest and debuggable, it resolves the next time the screen is loaded after the allocation.
+  Start the sub-container that publishes the port before pointing the user at the sentence;
+- browsing through Gladys Plus or a reverse proxy, `{{gladys_host}}` resolves to the tunnel/proxy hostname, not to
+  the instance's LAN address — if the device must reach Gladys over the LAN, say so in the repo documentation.
 
 For the long step-by-step (screenshots…), the right medium stays the mandatory repo documentation
 (`docs/en.md` + `docs/fr.md`): the Configuration screen now shows a permanent **"Documentation"** link to it
@@ -610,7 +659,8 @@ regenerate the configs and (re)start what is needed.
 Each entry of `container.ports` mirrors the manifest declaration plus the host port Gladys allocated:
 
 ```js
-// [{ container_port: 5000, protocol: 'tcp', host_port: 42115, label: { en: 'Frigate UI' }, browsable: true }]
+// [{ container_port: 5000, protocol: 'tcp', host_port: 42115, label: { en: 'Frigate UI' },
+//    name: 'frigate_ui', browsable: true }]
 const [{ host_port: frigatePort }] = frigate.ports;
 ```
 
@@ -619,6 +669,13 @@ so read it here rather than assuming one; it is `null` as long as none has been 
 started). `browsable` mirrors the manifest field: `true` (default) for a port serving a web UI — the supervision
 screen shows an "Open <label>" link — and `false` for a port a browser cannot open, e.g. a WebSocket endpoint
 waiting for devices (the OCPP case), which is shown as a plain `<label> : <host_port>` badge instead.
+
+`name` mirrors the optional manifest field of the same port (`[a-z0-9_]{2,20}`, **unique across the whole
+manifest**, `null` when the manifest declares none): it is what makes the assigned host port referenceable by the
+`{{port:<name>}}` placeholder of the manifest section texts — the way to spell out an address of the instance
+inside a sentence shown to the user (see
+[Placeholders in section texts](#placeholders-in-section-texts-gladys_host-and-portname)). It pairs naturally with
+`browsable: false`: a port that opens no web UI, whose number the user still has to read.
 
 ### Mediated network discovery
 

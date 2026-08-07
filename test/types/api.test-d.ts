@@ -152,12 +152,15 @@ const main = async (): Promise<void> => {
   const portProtocol: ContainerPortProtocol | undefined = containers[0]?.ports[0]?.protocol;
   const browsable: boolean | undefined = containers[0]?.ports[0]?.browsable;
   const portLabel: string | undefined = containers[0]?.ports[0]?.label.en;
+  // same direct assignment for the optional port name of the {{port:<name>}} placeholder
+  const unnamedPort: ContainerPort['name'] = null;
+  const portName: ContainerPort['name'] = 'ocpp';
   await gladys.startContainer('mqtt', { env: { MQTT_PASSWORD: 's3cr3t' } });
   await gladys.startContainer('mqtt');
   await gladys.stopContainer('mqtt');
   await gladys.restartContainer('frigate');
   const oauthType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL;
-  void [hostPort, unassignedHostPort, portProtocol, browsable, portLabel, oauthType];
+  void [hostPort, unassignedHostPort, portProtocol, browsable, portLabel, unnamedPort, portName, oauthType];
 
   gladys.onWebhook('events', async (request: WebhookRequest) => {
     const line: string = `${request.method} ${request.body ?? ''} ${request.contentType ?? ''}`;

@@ -110,6 +110,7 @@ export type ContainerPortProtocol = 'tcp' | 'udp';
 
 /** A published port of a sub-container, with the host port assigned by Gladys. */
 export interface ContainerPort {
+  /** Port declared in the manifest, inside the container. */
   container_port: number;
   /** Protocol declared in the manifest, `tcp` when omitted. */
   protocol: ContainerPortProtocol;
@@ -117,6 +118,13 @@ export interface ContainerPort {
   host_port: number | null;
   /** Multi-language label of the port, as declared in the manifest. */
   label: MultiLanguageMessage;
+  /**
+   * Stable identifier of the port declared in the manifest (`[a-z0-9_]{2,20}`,
+   * unique across the whole manifest), `null` when the manifest declares none.
+   * It makes the assigned host port referenceable by the `{{port:<name>}}`
+   * placeholder of the manifest section texts (contract C.1).
+   */
+  name: string | null;
   /**
    * Whether the port serves a web UI reachable from a browser. `false` (manifest
    * `browsable: false`, e.g. a WebSocket endpoint waiting for devices) — the
