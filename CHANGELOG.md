@@ -1,3 +1,10 @@
+## [0.11.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.10.0...v0.11.0) (2026-08-07)
+
+### Features
+
+* named container ports and section text placeholders (spec C.1 update) ([#25](https://github.com/GladysAssistant/integration-sdk-js/issues/25)) ([6a15242](https://github.com/GladysAssistant/integration-sdk-js/commit/6a15242f7b1dbdf0202113ee4599fc779129f592))
+* resync device constants with Gladys (charging station, water heater, thermostat) ([#26](https://github.com/GladysAssistant/integration-sdk-js/issues/26)) ([3a60fda](https://github.com/GladysAssistant/integration-sdk-js/commit/3a60fda1a2acc36414e68659a2ecb876b8b953a6))
+* weather integration type, onWeatherGet handler and pivot format (spec B.18) ([#19](https://github.com/GladysAssistant/integration-sdk-js/issues/19)) ([c29defe](https://github.com/GladysAssistant/integration-sdk-js/commit/c29defe06ab2e0374faa2ac05eaa628a6062cbb9)), closes [GladysAssistant/Gladys#2738](https://github.com/GladysAssistant/Gladys/issues/2738) [GladysAssistant/Gladys#2738](https://github.com/GladysAssistant/Gladys/issues/2738)
 ## [0.10.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.9.0...v0.10.0) (2026-08-02)
 
 ### Features
