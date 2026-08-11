@@ -179,6 +179,9 @@ class FakeGladysServer {
         case 'POST /network_discovery/scan':
           respond(200, this.networkScanResults);
           break;
+        case 'POST /network/wake':
+          respond(200, { success: true });
+          break;
         case 'POST /message':
           respond(200, { success: true });
           break;

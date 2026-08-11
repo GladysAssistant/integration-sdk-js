@@ -172,6 +172,18 @@ export interface NetworkScanOptions {
   timeoutSeconds?: number;
 }
 
+/** Options of a Wake-on-LAN request sent through the Gladys core Host API. */
+export interface WakeOnLanOptions {
+  /** Target MAC address. */
+  mac: string;
+  /** Destination IPv4 address. Default: 255.255.255.255. */
+  address?: string;
+  /** UDP destination port. Default: 9. */
+  port?: number;
+  /** UDP source port. Default: 0 (ephemeral). */
+  sourcePort?: number;
+}
+
 /**
  * Options of an active broadcast scan ('udp-active-broadcast', contract B.16):
  * the integration forges the discovery request, the core broadcasts it and
@@ -1399,6 +1411,13 @@ export declare class GladysIntegration extends EventEmitter {
   scanNetwork(type: 'mdns', options?: NetworkScanOptions): Promise<MdnsScanResult[]>;
   scanNetwork(type: 'ssdp', options?: NetworkScanOptions): Promise<SsdpScanResult[]>;
   scanNetwork(type: string, options?: NetworkScanOptions & Partial<NetworkActiveScanOptions>): Promise<unknown[]>;
+
+  /**
+   * Send a standard Wake-on-LAN magic packet through the Gladys core network
+   * namespace. Requires `network_wake: true` in the integration manifest;
+   * otherwise the core rejects the request with 403.
+   */
+  wakeOnLan(options: WakeOnLanOptions): Promise<SuccessResponse>;
 
   /** Handler called when the user actions a device feature (auto-acked). */
   onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;
