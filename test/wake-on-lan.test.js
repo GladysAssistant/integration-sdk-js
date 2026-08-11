@@ -177,4 +177,30 @@ describe('Wake-on-LAN (gladys.wakeOnLan)', () => {
       },
     );
   });
+  it('should reject malformed non-empty MAC addresses without any HTTP request', async () => {
+    const invalidMacAddresses = ['64:e4:d5:b4:12', '64:e4:d5:b4:12:zz', '64:e4-d5:b4:12:66'];
+
+    await Promise.all(
+      invalidMacAddresses.map((mac) => assert.rejects(gladys.wakeOnLan({ mac }), /"mac" must be a valid MAC address/)),
+    );
+
+    assert.equal(server.getRequests('POST', '/network/wake').length, 0);
+  });
+  it('should reject malformed non-empty IPv4 addresses without any HTTP request', async () => {
+    const invalidAddresses = ['invalid-ip', '192.168.1', '999.168.1.1', '::1'];
+
+    await Promise.all(
+      invalidAddresses.map((address) =>
+        assert.rejects(
+          gladys.wakeOnLan({
+            mac: '64:e4:d5:b4:12:66',
+            address,
+          }),
+          /"address" must be a valid IPv4 address/,
+        ),
+      ),
+    );
+
+    assert.equal(server.getRequests('POST', '/network/wake').length, 0);
+  });
 });
