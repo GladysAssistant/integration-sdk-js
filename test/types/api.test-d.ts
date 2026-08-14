@@ -14,6 +14,7 @@ import {
   DEVICE_TRANSPORTS,
   DeviceExternalIds,
   DeviceFeature,
+  DeviceFeatureSupportedOption,
   DeviceTransport,
   DeviceTransportEntry,
   GladysApiError,
@@ -30,6 +31,7 @@ import {
   NetworkActiveScanOptions,
   OutgoingMessage,
   UdpBroadcastScanResult,
+  WakeOnLanOptions,
   WEATHER_ALERT_SEVERITIES,
   WEATHER_ALERT_TYPES,
   WEATHER_CONDITIONS,
@@ -76,8 +78,14 @@ const main = async (): Promise<void> => {
     ]);
   });
 
-  gladys.onSetValue(async (device: Device, feature: DeviceFeature, value: number) => {
-    await gladys.publishState(feature.external_id, value);
+  gladys.onSetValue(async (device: Device, feature: DeviceFeature, value: number | string) => {
+    if (feature.type === DEVICE_FEATURE_TYPES.TEXT.SELECT) {
+      // A select command carries the selected option's string value; its
+      // state is the string form (last_value_string, no history).
+      await gladys.publishState(feature.external_id, { text: String(value) });
+      return;
+    }
+    await gladys.publishState(feature.external_id, Number(value));
   });
 
   gladys.onPoll(async (device: Device) => {
@@ -96,8 +104,10 @@ const main = async (): Promise<void> => {
   });
 
   gladys.onOAuthAuthorizeUrl(
-    async (key: string, redirectUri: string) =>
-      `https://provider.example/authorize?key=${key}&redirect_uri=${redirectUri}`,
+    // redirectUri is undefined for an `account_link` field (a provider that
+    // never redirects back to Gladys).
+    async (key: string, redirectUri: string | undefined) =>
+      `https://provider.example/authorize?key=${key}&redirect_uri=${redirectUri ?? ''}`,
   );
 
   gladys.onOAuthCallback(async (key: string, params: { code: string; state: string; redirectUri: string }) => {
@@ -248,6 +258,50 @@ const main = async (): Promise<void> => {
   });
   const activeScanOptions: NetworkActiveScanOptions = { port: 20002, payload: 'AAAB' };
   void [payload, txt, headers, replies[0].source_ip, activeScanOptions];
+
+  await gladys.wakeOnLan('64:e4:d5:b4:12:66');
+  const wakeOptions: WakeOnLanOptions = { address: '192.168.1.255', port: 9, sourcePort: 0 };
+  await gladys.wakeOnLan('64E4D5B41266', wakeOptions);
+
+  // PTZ camera (CAMERA.MOVE/PRESET) and dynamic select (TEXT.SELECT):
+  // enum-like features narrowed per device through supported_options.
+  const moveOptions: DeviceFeatureSupportedOption[] = [
+    { value: 1, label: 'Pan left', sort_order: 0 },
+    { value: 2, label: 'Pan right', sort_order: 1 },
+  ];
+  const ptzFeature: DeviceFeature = {
+    name: 'Move',
+    external_id: gladys.externalId('cam:abc:move'),
+    category: DEVICE_FEATURE_CATEGORIES.CAMERA,
+    type: DEVICE_FEATURE_TYPES.CAMERA.MOVE,
+    min: 0,
+    max: 6,
+    read_only: false,
+    has_feedback: false,
+    keep_history: false,
+    supported_options: moveOptions,
+  };
+  // String option values are only valid on the text/select pair: a dynamic
+  // select is a `text` category feature, whatever device carries it (here the
+  // HDMI sources of a TV device).
+  const sourceFeature: DeviceFeature = {
+    name: 'Source',
+    external_id: gladys.externalId('tv:abc:source'),
+    category: DEVICE_FEATURE_CATEGORIES.TEXT,
+    type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
+    read_only: false,
+    supported_options: [{ value: 'hdmi1', label: 'HDMI 1' }],
+  };
+  const steppedFeature: DeviceFeature = {
+    name: 'Target temperature',
+    external_id: gladys.externalId('ac:abc:target-temperature'),
+    category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+    type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE,
+    min: 16,
+    max: 30,
+    step: 0.5,
+  };
+  void [ptzFeature, sourceFeature, steppedFeature];
 
   const error = new GladysApiError(401, 'UNAUTHORIZED', 'Invalid token');
   const parts: [number, string, string] = [error.status, error.code, error.message];

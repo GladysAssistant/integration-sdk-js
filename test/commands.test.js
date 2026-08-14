@@ -43,6 +43,24 @@ describe('commands (auto-ack through command-result)', () => {
     assert.deepEqual(received, [[device, deviceFeature, 1]]);
   });
 
+  it('should forward a string set-value command unchanged (text/select dynamic selects)', async () => {
+    const received = [];
+    gladys.onSetValue(async (d, f, value) => {
+      received.push([d, f, value]);
+    });
+    await gladys.connect();
+    const selectFeature = { external_id: 'ext:ext-demo:tv:source', category: 'text', type: 'select' };
+    server.send(EXTERNAL_INTEGRATION.DEVICE_SET_VALUE, {
+      message_id: 'msg-1b',
+      device,
+      device_feature: selectFeature,
+      value: 'hdmi1',
+    });
+    const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+    assert.deepEqual(result.payload, { message_id: 'msg-1b', success: true });
+    assert.deepEqual(received, [[device, selectFeature, 'hdmi1']]);
+  });
+
   it('should send the resolved value in the ack data when it is not undefined', async () => {
     gladys.onSetValue(async () => ({ applied: true }));
     await gladys.connect();
