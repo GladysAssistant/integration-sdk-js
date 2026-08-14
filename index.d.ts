@@ -38,12 +38,41 @@ export interface DeviceFeature {
   unit?: string;
   min?: number;
   max?: number;
+  /**
+   * Resolution the physical device accepts for a setpoint (finite number > 0,
+   * e.g. 0.5 for an AC steppable by half a degree), honored by the dashboard
+   * +/- buttons. Absent or null = nothing declared, the UI keeps its
+   * per-category default.
+   */
+  step?: number | null;
   read_only?: boolean;
   has_feedback?: boolean;
   keep_history?: boolean;
   last_value?: number;
   last_value_string?: string;
+  /**
+   * For an enum-like feature, the subset of values THIS device actually
+   * supports (camera movements and presets, AC modes…): the taxonomy defines
+   * the full generic value set, the integration narrows it per device. String
+   * values are only accepted on the `text`/`select` feature type (dynamic
+   * selects: installed TV apps, HDMI sources…). On re-publish of an
+   * already-created device, the options are silently upserted by the
+   * supervisor like the `params` (matched by feature external_id).
+   */
+  supported_options?: DeviceFeatureSupportedOption[];
   [key: string]: unknown;
+}
+
+/**
+ * One labeled option of an enum-like feature (`supported_options`): `value` is
+ * the scalar sent as the command value (integers everywhere; strings only on
+ * the `text`/`select` type), `label` the human name, `sort_order` the display
+ * order (defaulted to the array index).
+ */
+export interface DeviceFeatureSupportedOption {
+  value: number | string;
+  label: string;
+  sort_order?: number;
 }
 
 /** A device param (free key/value attached to a device). */
@@ -185,6 +214,20 @@ export interface NetworkActiveScanOptions extends NetworkScanOptions {
    * string (≤ 512 decoded bytes).
    */
   payload: Buffer | string;
+}
+
+/** Options of a Wake-on-LAN emission (contract C.3). */
+export interface WakeOnLanOptions {
+  /**
+   * Destination IPv4 address. Default: 255.255.255.255 (the limited
+   * broadcast — use the subnet broadcast, e.g. `192.168.1.255`, when the
+   * device ignores the limited one).
+   */
+  address?: string;
+  /** Destination UDP port. Default: 9. */
+  port?: number;
+  /** Source UDP port. Default: 0 (ephemeral port chosen by the OS). */
+  sourcePort?: number;
 }
 
 /** Raw result of a 'udp-broadcast' mediated scan: one received datagram. */
@@ -605,8 +648,10 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ENERGY_SENSOR: 'energy-sensor';
   readonly ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor';
   readonly FAN: 'fan';
+  readonly GRID_SENSOR: 'grid-sensor';
   readonly HEATER: 'heater';
   readonly HEPA_FILTER_MONITORING: 'hepa-filter-monitoring';
+  readonly HOME_OUTPUT_SENSOR: 'home-output-sensor';
   readonly HUMIDITY_SENSOR: 'humidity-sensor';
   readonly LEAK_SENSOR: 'leak-sensor';
   readonly LIGHT: 'light';
@@ -614,6 +659,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly LEVEL_SENSOR: 'level-sensor';
   readonly MOTION_SENSOR: 'motion-sensor';
   readonly LOCK: 'lock';
+  readonly MAINTENANCE: 'maintenance';
   readonly MUSIC: 'music';
   readonly NOISE_SENSOR: 'noise-sensor';
   readonly OPENING_SENSOR: 'opening-sensor';
@@ -622,6 +668,9 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly PM25_SENSOR: 'pm25-sensor';
   readonly PM10_SENSOR: 'pm10-sensor';
   readonly FORMALDEHYD_SENSOR: 'formaldehyd-sensor';
+  readonly NO2_SENSOR: 'no2-sensor';
+  readonly O3_SENSOR: 'o3-sensor';
+  readonly SO2_SENSOR: 'so2-sensor';
   readonly PRECIPITATION_SENSOR: 'precipitation-sensor';
   readonly PRESENCE_SENSOR: 'presence-sensor';
   readonly PRESSURE_SENSOR: 'pressure-sensor';
@@ -698,6 +747,11 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly CAMERA: {
     readonly IMAGE: 'image';
+    readonly MOVE: 'move';
+    readonly PRESET: 'preset';
+    readonly PAN_POSITION: 'pan-position';
+    readonly TILT_POSITION: 'tilt-position';
+    readonly ZOOM_POSITION: 'zoom-position';
   };
   readonly CHARGING_STATION: {
     readonly CONNECTOR_STATUS: 'connector-status';
@@ -710,6 +764,7 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly BINARY: 'binary';
     readonly LMH_VOLUME: 'lmh_volume';
     readonly MELODY: 'melody';
+    readonly TEST_IN_PROGRESS: 'test-in-progress';
   };
   readonly CHILD_LOCK: {
     readonly BINARY: 'binary';
@@ -823,11 +878,25 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly THIRTY_MINUTES_CONSUMPTION_COST: 'thirty-minutes-consumption-cost';
   };
   readonly ENERGY_PRODUCTION_SENSOR: {
+    readonly POWER: 'power';
     readonly INDEX: 'index';
     readonly DAILY_PRODUCTION: 'daily-production';
     readonly DAILY_PRODUCTION_REVENUE: 'daily-production-revenue';
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
+  };
+  readonly GRID_SENSOR: {
+    readonly INPUT_POWER: 'input-power';
+    readonly OUTPUT_POWER: 'output-power';
+    readonly POWER: 'power';
+    readonly INPUT_INDEX: 'input-index';
+    readonly OUTPUT_INDEX: 'output-index';
+  };
+  readonly HOME_OUTPUT_SENSOR: {
+    readonly POWER: 'power';
+    readonly INDEX: 'index';
+    readonly OFF_GRID_POWER: 'off-grid-power';
+    readonly OFF_GRID_INDEX: 'off-grid-index';
   };
   readonly BATTERY_STORAGE: {
     readonly BATTERY_LEVEL: 'battery-level';
@@ -958,6 +1027,7 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly TEXT: {
     readonly TEXT: 'text';
+    readonly SELECT: 'select';
   };
   readonly RISK: {
     readonly INTEGER: 'integer';
@@ -1033,6 +1103,9 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly FILTER_MONITORING: {
     readonly FILTER_LIFE_REMAINING: 'filter-life-remaining';
+  };
+  readonly MAINTENANCE: {
+    readonly LIFE_REMAINING: 'life-remaining';
   };
   readonly VACUUM_CLEANER: {
     readonly STATE: 'state';
@@ -1400,6 +1473,16 @@ export declare class GladysIntegration extends EventEmitter {
   scanNetwork(type: 'ssdp', options?: NetworkScanOptions): Promise<SsdpScanResult[]>;
   scanNetwork(type: string, options?: NetworkScanOptions & Partial<NetworkActiveScanOptions>): Promise<unknown[]>;
 
+  /**
+   * Send a Wake-on-LAN magic packet from the Gladys core network namespace
+   * (bridge containers cannot reach the LAN in broadcast). The core builds the
+   * standard fixed magic packet itself — this is not a general UDP proxy.
+   * Requires `network_wake: true` in the manifest (403 otherwise); 1 wake per
+   * 2 s per integration (429 beyond). A resolved call means the packet was
+   * emitted, not that the device actually woke up.
+   */
+  wakeOnLan(mac: string, options?: WakeOnLanOptions): Promise<SuccessResponse>;
+
   /** Handler called when the user actions a device feature (auto-acked). */
   onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;
 
@@ -1438,12 +1521,16 @@ export declare class GladysIntegration extends EventEmitter {
   onHardwareUpdated(callback: (containers: HardwareUpdatedContainer[]) => void | Promise<void>): void;
 
   /**
-   * Handler called when the user clicks "Connect" on an `oauth2` config field
-   * (auto-acked): build and return the provider authorization URL — client_id
-   * from the config, scopes, a `state` you generate and remember. The resolved
-   * string is acked as `data.authorize_url`.
+   * Handler called when the user clicks "Connect" on an `oauth2` or an
+   * `account_link` config field (auto-acked): build and return the provider
+   * authorization URL — for `oauth2`: client_id from the config, scopes, a
+   * `state` you generate and remember. The resolved string is acked as
+   * `data.authorize_url`. For an `account_link` field (a provider that never
+   * redirects back) `redirectUri` is `undefined` and there is no callback:
+   * watch for the approval yourself, then report it through
+   * `setConnectionStatus(true)`.
    */
-  onOAuthAuthorizeUrl(callback: (key: string, redirectUri: string) => string | Promise<string>): void;
+  onOAuthAuthorizeUrl(callback: (key: string, redirectUri: string | undefined) => string | Promise<string>): void;
 
   /**
    * Handler called when the OAuth2 provider redirects back (auto-acked):

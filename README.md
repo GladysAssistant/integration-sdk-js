@@ -110,7 +110,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                                               |
 | `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                                                     |
 | `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                                                      |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` in Gladys (a LAN IP that changed in DHCP…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                                                |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` and its features' `supported_options` in Gladys (a LAN IP that changed in DHCP, a camera preset renamed…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead |
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                          |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                       |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -129,6 +129,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                             |
 | `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                             |
 | `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies   |
+| `wakeOnLan(mac, options?)`                 | Sends a standard Wake-on-LAN magic packet from the Gladys core network namespace (bridge containers cannot reach the LAN in broadcast). Requires `network_wake: true` in the manifest (403 otherwise); the core builds the fixed magic packet itself (never integration-provided bytes) and bounds the rate to 1 wake per 2 s per integration (429 beyond). Options: `{ address, port, sourcePort }`                                  |
 
 ### Handlers
 
@@ -146,7 +147,7 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                              |
 | `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                                        |
 | `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                                 |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember)                                                                                                                                                                                            |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember). Also called for an `account_link` field (a provider that never redirects back), with `redirectUri` undefined and no callback to expect                                                    |
 | `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                               |
 | `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                                         |
 | `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`)               |
@@ -328,6 +329,13 @@ the UI instead of a silently broken integration:
 ```js
 await gladys.setConnectionStatus(false, { en: 'Token expired, please reconnect.', fr: 'Token expiré.' });
 ```
+
+Some providers link an account **without ever redirecting back** to Gladys — a QR sign-in approved in the vendor
+app (Xiaomi Home style), a pairing confirmed on a device. Declare the field as `account_link` instead of `oauth2`:
+the Configuration screen renders the same "Connect" button and `onOAuthAuthorizeUrl` is called the same way, but
+`redirectUri` is `undefined` (there is none), no anti-CSRF `state` is needed (there is no round trip to protect)
+and `onOAuthCallback` is never called. Return the provider sign-in URL, watch for the approval yourself (long-poll
+the provider), then report it through `setConnectionStatus(true)` — that is what drives the connection badge.
 
 ### Incoming webhooks through Gladys Plus
 
@@ -578,6 +586,18 @@ await gladys.publishCameraImage(ids.device, `image/jpg;base64,${jpeg.toString('b
 Images never go through `publishState`: dedicated channel, out of the states history and of the 300 states/minute
 rate limit.
 
+**Motorized (PTZ) cameras** add ordinary command features to the same device — no new plumbing, movement commands
+arrive through `onSetValue` like any feature. `CAMERA.MOVE` is one feature for all movements: the value names the
+movement (0 stop — always supported, never listed as an option —, 1 pan left, 2 pan right, 3 tilt up, 4 tilt down,
+5 zoom in, 6 zoom out), and the feature's `supported_options` (`[{ value, label, sort_order }]`) declare the subset
+this camera actually supports. **Safety rule (MUST)**: bound every continuous move with a watchdog (~5 s) — a lost
+stop must never leave the camera rotating against its mechanical stop; prefer a relative step when the camera
+supports one. `CAMERA.PRESET` recalls a saved position: the labeled preset list lives in `supported_options` (the
+value sent is the option's integer, mapped by the integration to its protocol token), and on re-publish of an
+already-created device the options are silently upserted like the `params` — e.g. a preset renamed on the camera.
+The optional `pan-position`/`tilt-position`/`zoom-position` types cover cameras that report an absolute position
+(numeric read/write, bounds via `min`/`max`, units integration-defined).
+
 ### Cloud/local transport badge
 
 Dual-channel integrations (Tuya cloud+LAN, Shelly, eWeLink…) can reach the same device through different
@@ -753,6 +773,24 @@ Raw result shapes: `udp-broadcast` and `udp-active-broadcast` → `[{ source_ip,
 entry per received datagram), `mdns` → `[{ name, host, addresses, port, txt }]`, `ssdp` → the raw headers per
 responder. Scans are synchronous and bounded (`timeoutSeconds` 1–30); requires a Gladys with mediated-discovery
 support (check the `gladys_version` range of your manifest).
+
+### Wake-on-LAN
+
+Same network position problem, emission side: a magic packet is a UDP broadcast, which never crosses the bridge to
+the LAN. Declare `network_wake: true` in the manifest (shown on the install screen, like the other authorization
+contracts — an undeclared access is a 403) and ask the core to emit it:
+
+```js
+await gladys.wakeOnLan('64:e4:d5:b4:12:66'); // ':', '-' and bare formats accepted
+// The device ignores the limited broadcast? Target the subnet broadcast, or tune the port:
+await gladys.wakeOnLan('64:e4:d5:b4:12:66', { address: '192.168.1.255', port: 9 });
+```
+
+The core always builds the standard fixed 102-byte magic packet itself (6 × `0xFF` + the MAC repeated 16 times):
+the integration never provides the payload, so the endpoint is not a general UDP proxy. Rate: **1 wake per
+2 seconds** per integration (`429` otherwise) — enough for the usual "retry until the device answers" loop. A
+resolved call means the packet was **emitted**, not that the device actually woke up: poll the device to confirm
+(and keep the usual retry loop, Wake-on-LAN is fire-and-forget by nature).
 
 ### Publishing states efficiently
 

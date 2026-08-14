@@ -48,6 +48,12 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.DOORBELL, 'doorbell');
     assert.equal(DEVICE_FEATURE_CATEGORIES.CHARGING_STATION, 'charging-station');
     assert.equal(DEVICE_FEATURE_CATEGORIES.WATER_HEATER, 'water-heater');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.GRID_SENSOR, 'grid-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.HOME_OUTPUT_SENSOR, 'home-output-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.MAINTENANCE, 'maintenance');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.NO2_SENSOR, 'no2-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.O3_SENSOR, 'o3-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.SO2_SENSOR, 'so2-sensor');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -67,6 +73,18 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.THERMOSTAT.OPERATING_STATE, 'operating-state');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.REMAINING_HOT_WATER, 'remaining-hot-water');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST, 'boost');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.MOVE, 'move');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PRESET, 'preset');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PAN_POSITION, 'pan-position');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.TILT_POSITION, 'tilt-position');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.ZOOM_POSITION, 'zoom-position');
+    assert.equal(DEVICE_FEATURE_TYPES.SIREN.TEST_IN_PROGRESS, 'test-in-progress');
+    assert.equal(DEVICE_FEATURE_TYPES.ENERGY_PRODUCTION_SENSOR.POWER, 'power');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.INPUT_POWER, 'input-power');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.OUTPUT_INDEX, 'output-index');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.OFF_GRID_POWER, 'off-grid-power');
+    assert.equal(DEVICE_FEATURE_TYPES.TEXT.SELECT, 'select');
+    assert.equal(DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING, 'life-remaining');
   });
 
   it('should expose the canonical unit strings', () => {

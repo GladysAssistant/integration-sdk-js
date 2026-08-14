@@ -43,6 +43,27 @@ describe('OAuth2 relay (oauth.get-authorize-url / oauth.callback)', () => {
     assert.deepEqual(received, [['netatmo_account', 'https://gladys.local/oauth-callback']]);
   });
 
+  it('should pass an undefined redirectUri for an account_link field (no redirect back, contract C.4)', async () => {
+    const received = [];
+    gladys.onOAuthAuthorizeUrl(async (key, redirectUri) => {
+      received.push([key, redirectUri]);
+      return 'https://provider.example/qr-sign-in?session=abc';
+    });
+    await gladys.connect();
+    // An account_link field has no redirect_uri: the relay omits the key.
+    server.send(EXTERNAL_INTEGRATION.OAUTH_GET_AUTHORIZE_URL, {
+      message_id: 'msg-1b',
+      key: 'xiaomi_account',
+    });
+    const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+    assert.deepEqual(result.payload, {
+      message_id: 'msg-1b',
+      success: true,
+      data: { authorize_url: 'https://provider.example/qr-sign-in?session=abc' },
+    });
+    assert.deepEqual(received, [['xiaomi_account', undefined]]);
+  });
+
   it('should ack oauth.get-authorize-url with success:false when the handler throws', async () => {
     gladys.onOAuthAuthorizeUrl(async () => {
       throw new Error('client_id not configured');
