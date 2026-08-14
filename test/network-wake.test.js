@@ -52,6 +52,21 @@ describe('wake-on-lan (gladys.wakeOnLan)', () => {
     assert.equal(server.getRequests('POST', '/network/wake').length, 0);
   });
 
+  it('should reject a non-IPv4 address, without any HTTP request', async () => {
+    // Same fail-fast contract as the core (net.isIPv4): hostnames, IPv6 and
+    // empty strings are a local Error, never a 400 GladysApiError round trip.
+    await assert.rejects(
+      gladys.wakeOnLan('64:e4:d5:b4:12:66', { address: 'nas.local' }),
+      /"address" must be an IPv4 address/,
+    );
+    await assert.rejects(
+      gladys.wakeOnLan('64:e4:d5:b4:12:66', { address: '::1' }),
+      /"address" must be an IPv4 address/,
+    );
+    await assert.rejects(gladys.wakeOnLan('64:e4:d5:b4:12:66', { address: '' }), /"address" must be an IPv4 address/);
+    assert.equal(server.getRequests('POST', '/network/wake').length, 0);
+  });
+
   it('should reject an out-of-range port or sourcePort, without any HTTP request', async () => {
     await assert.rejects(
       gladys.wakeOnLan('64:e4:d5:b4:12:66', { port: 0 }),

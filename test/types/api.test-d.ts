@@ -78,8 +78,14 @@ const main = async (): Promise<void> => {
     ]);
   });
 
-  gladys.onSetValue(async (device: Device, feature: DeviceFeature, value: number) => {
-    await gladys.publishState(feature.external_id, value);
+  gladys.onSetValue(async (device: Device, feature: DeviceFeature, value: number | string) => {
+    if (feature.type === DEVICE_FEATURE_TYPES.TEXT.SELECT) {
+      // A select command carries the selected option's string value; its
+      // state is the string form (last_value_string, no history).
+      await gladys.publishState(feature.external_id, { text: String(value) });
+      return;
+    }
+    await gladys.publishState(feature.external_id, Number(value));
   });
 
   gladys.onPoll(async (device: Device) => {
@@ -275,10 +281,13 @@ const main = async (): Promise<void> => {
     keep_history: false,
     supported_options: moveOptions,
   };
+  // String option values are only valid on the text/select pair: a dynamic
+  // select is a `text` category feature, whatever device carries it (here the
+  // HDMI sources of a TV device).
   const sourceFeature: DeviceFeature = {
     name: 'Source',
     external_id: gladys.externalId('tv:abc:source'),
-    category: DEVICE_FEATURE_CATEGORIES.TELEVISION,
+    category: DEVICE_FEATURE_CATEGORIES.TEXT,
     type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
     read_only: false,
     supported_options: [{ value: 'hdmi1', label: 'HDMI 1' }],

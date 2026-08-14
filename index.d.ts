@@ -1483,8 +1483,15 @@ export declare class GladysIntegration extends EventEmitter {
    */
   wakeOnLan(mac: string, options?: WakeOnLanOptions): Promise<SuccessResponse>;
 
-  /** Handler called when the user actions a device feature (auto-acked). */
-  onSetValue(callback: (device: Device, deviceFeature: DeviceFeature, value: number) => void | Promise<void>): void;
+  /**
+   * Handler called when the user actions a device feature (auto-acked).
+   * `value` is a number for every feature except the `text` category ones,
+   * whose commands are strings — the free text of a `text`/`text` feature,
+   * the selected option value of a `text`/`select` dynamic select.
+   */
+  onSetValue(
+    callback: (device: Device, deviceFeature: DeviceFeature, value: number | string) => void | Promise<void>,
+  ): void;
 
   /** Handler called when the Gladys scheduler asks to poll a device (auto-acked). */
   onPoll(callback: (device: Device) => void | Promise<void>): void;
