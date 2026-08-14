@@ -1,3 +1,8 @@
+## [0.12.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.11.0...v0.12.0) (2026-08-14)
+
+### Features
+
+* resync with Gladys 4.86 (grid/home-output/gas sensors, camera PTZ, wake-on-lan, account_link) ([#28](https://github.com/GladysAssistant/integration-sdk-js/issues/28)) ([9555c5e](https://github.com/GladysAssistant/integration-sdk-js/commit/9555c5e5f23852b7067f6102fe83577a274b29e9))
 ## [0.11.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.10.0...v0.11.0) (2026-08-07)
 
 ### Features
