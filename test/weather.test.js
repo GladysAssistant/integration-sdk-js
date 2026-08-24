@@ -189,6 +189,12 @@ describe('weather integrations (contract B.18)', () => {
         'wind',
         'night',
         'unknown',
+        'freezing-rain',
+        'freezing-fog',
+        'snow-thunderstorm',
+        'sandstorm',
+        'tornado',
+        'hurricane',
       ]);
     });
 

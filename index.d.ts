@@ -299,6 +299,12 @@ export interface LinkedContact {
  * coerced to 'unknown' by the Gladys core. 'night' is deprecated for
  * providers: send the real condition plus `is_day: false` instead (a rainy
  * night stays 'rain').
+ *
+ * The last six are extensions for phenomena the original enum flattened into a
+ * neighbour: freezing rain and freezing fog carried no warning as 'rain' and
+ * 'fog', a thundery snow shower is neither 'snow' nor 'thunderstorm', and
+ * 'wind' said nothing of a tornado or a cyclone. Keep sending the broader
+ * condition when the provider cannot tell them apart.
  */
 export type WeatherCondition =
   | 'clear'
@@ -314,7 +320,13 @@ export type WeatherCondition =
   | 'thunderstorm'
   | 'wind'
   | 'night'
-  | 'unknown';
+  | 'unknown'
+  | 'freezing-rain'
+  | 'freezing-fog'
+  | 'snow-thunderstorm'
+  | 'sandstorm'
+  | 'tornado'
+  | 'hurricane';
 
 /**
  * CAP-style severity of a weather alert (contract B.18) — Common Alerting
@@ -1267,6 +1279,12 @@ export declare const WEATHER_CONDITIONS: {
   /** Deprecated for providers: send the real condition + `is_day: false`. */
   readonly NIGHT: 'night';
   readonly UNKNOWN: 'unknown';
+  readonly FREEZING_RAIN: 'freezing-rain';
+  readonly FREEZING_FOG: 'freezing-fog';
+  readonly SNOW_THUNDERSTORM: 'snow-thunderstorm';
+  readonly SANDSTORM: 'sandstorm';
+  readonly TORNADO: 'tornado';
+  readonly HURRICANE: 'hurricane';
 };
 
 /** CAP-style severities of the weather alerts (contract B.18). */
