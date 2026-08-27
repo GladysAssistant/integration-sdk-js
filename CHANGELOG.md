@@ -1,3 +1,9 @@
+## [0.13.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.12.0...v0.13.0) (2026-08-27)
+
+### Features
+
+* extend the pivot weather conditions with six distinct phenomena (spec B.18) ([#30](https://github.com/GladysAssistant/integration-sdk-js/issues/30)) ([22388e7](https://github.com/GladysAssistant/integration-sdk-js/commit/22388e7cd824dd3ac7acce443235599c1c2f7b2f))
+* resync with Gladys master (camera enabled, siren alarm modes, battery charging, scan result shapes) ([#31](https://github.com/GladysAssistant/integration-sdk-js/issues/31)) ([f46d7e8](https://github.com/GladysAssistant/integration-sdk-js/commit/f46d7e87c32cd461dfd861c1ca131b436868dec2))
 ## [0.12.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.11.0...v0.12.0) (2026-08-14)
 
 ### Features
