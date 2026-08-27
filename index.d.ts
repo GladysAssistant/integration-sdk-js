@@ -237,17 +237,36 @@ export interface UdpBroadcastScanResult {
   payload_base64: string;
 }
 
-/** Raw result of an 'mdns' mediated scan: one browsed service instance. */
+/**
+ * Raw result of an 'mdns' mediated scan: one browsed service instance. A
+ * scan browses every `mdns` entry declared in the manifest and merges their
+ * results. `host` and `port` stay null when no SRV record was seen during
+ * the scan window; `txt` holds the raw TXT record entries (usually
+ * `key=value` strings) — parsing them is the integration's job.
+ */
 export interface MdnsScanResult {
   name: string;
-  host: string;
+  host: string | null;
   addresses: string[];
-  port: number;
-  txt: Record<string, string>;
+  port: number | null;
+  txt: string[];
 }
 
-/** Raw result of an 'ssdp' mediated scan: the raw headers of one responder. */
-export type SsdpScanResult = Record<string, string>;
+/**
+ * Raw result of an 'ssdp' mediated scan: one M-SEARCH responder. `headers`
+ * is the raw response text — parsing it is the integration's job.
+ * `source_mac` is optional and best-effort: the core looks the responder IP
+ * up in its own neighbour (ARP) table and omits the field whenever the
+ * kernel has no resolved entry for that IP — a missing `source_mac` is
+ * ordinary, not an error. When present, it saves asking the user to type a
+ * MAC by hand to enable Wake-on-LAN on a device just discovered.
+ */
+export interface SsdpScanResult {
+  source_ip: string;
+  source_mac?: string;
+  source_port: number;
+  headers: string;
+}
 
 /**
  * Values of the `fields` mini-form of a manifest action (contract C.1).
@@ -759,6 +778,7 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly CAMERA: {
     readonly IMAGE: 'image';
+    readonly ENABLED: 'enabled';
     readonly MOVE: 'move';
     readonly PRESET: 'preset';
     readonly PAN_POSITION: 'pan-position';
@@ -777,6 +797,8 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly LMH_VOLUME: 'lmh_volume';
     readonly MELODY: 'melody';
     readonly TEST_IN_PROGRESS: 'test-in-progress';
+    readonly ALARM_MODE: 'alarm-mode';
+    readonly ALARM_STATE: 'alarm-state';
   };
   readonly CHILD_LOCK: {
     readonly BINARY: 'binary';
@@ -787,6 +809,7 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly BATTERY: {
     readonly INTEGER: 'integer';
+    readonly CHARGING: 'charging';
   };
   readonly BATTERY_LOW: {
     readonly BINARY: 'binary';
