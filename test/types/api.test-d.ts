@@ -30,6 +30,7 @@ import {
   MdnsScanResult,
   NetworkActiveScanOptions,
   OutgoingMessage,
+  SsdpScanResult,
   UdpBroadcastScanResult,
   WakeOnLanOptions,
   WEATHER_ALERT_SEVERITIES,
@@ -249,15 +250,17 @@ const main = async (): Promise<void> => {
   const announcements: UdpBroadcastScanResult[] = await gladys.scanNetwork('udp-broadcast', { timeoutSeconds: 10 });
   const payload: string = announcements[0].payload_base64;
   const services: MdnsScanResult[] = await gladys.scanNetwork('mdns');
-  const txt: Record<string, string> = services[0].txt;
-  const headers = await gladys.scanNetwork('ssdp', { timeoutSeconds: 5 });
+  const txt: string[] = services[0].txt;
+  const responders: SsdpScanResult[] = await gladys.scanNetwork('ssdp', { timeoutSeconds: 5 });
+  const headers: string = responders[0].headers;
+  const mac: string | undefined = responders[0].source_mac;
   const replies: UdpBroadcastScanResult[] = await gladys.scanNetwork('udp-active-broadcast', {
     port: 9999,
     payload: Buffer.from('kasa-discovery-request'),
     timeoutSeconds: 5,
   });
   const activeScanOptions: NetworkActiveScanOptions = { port: 20002, payload: 'AAAB' };
-  void [payload, txt, headers, replies[0].source_ip, activeScanOptions];
+  void [payload, txt, headers, mac, replies[0].source_ip, activeScanOptions];
 
   await gladys.wakeOnLan('64:e4:d5:b4:12:66');
   const wakeOptions: WakeOnLanOptions = { address: '192.168.1.255', port: 9, sourcePort: 0 };

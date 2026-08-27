@@ -770,9 +770,13 @@ Active-scan guardrails (enforced by the core, the primitive stays uninteresting 
 ports, payload of at most **512 decoded bytes**, **1 scan per 10 seconds** per integration (`429` otherwise).
 
 Raw result shapes: `udp-broadcast` and `udp-active-broadcast` → `[{ source_ip, source_port, payload_base64 }]` (one
-entry per received datagram), `mdns` → `[{ name, host, addresses, port, txt }]`, `ssdp` → the raw headers per
-responder. Scans are synchronous and bounded (`timeoutSeconds` 1–30); requires a Gladys with mediated-discovery
-support (check the `gladys_version` range of your manifest).
+entry per received datagram), `mdns` → `[{ name, host, addresses, port, txt }]` (an `mdns` scan browses **every**
+`mdns` entry declared in the manifest and merges their results; `txt` is the raw TXT record entries as strings),
+`ssdp` → `[{ source_ip, source_mac?, source_port, headers }]` (`headers` is the raw response text; `source_mac` is
+**best-effort** — the core looks the responder IP up in its own ARP table and omits the field when the kernel has
+no resolved entry, so treat its absence as normal — when present it saves asking the user for a MAC to use
+Wake-on-LAN on a freshly discovered device). Scans are synchronous and bounded (`timeoutSeconds` 1–30); requires a
+Gladys with mediated-discovery support (check the `gladys_version` range of your manifest).
 
 ### Wake-on-LAN
 

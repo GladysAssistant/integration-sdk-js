@@ -73,12 +73,16 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.THERMOSTAT.OPERATING_STATE, 'operating-state');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.REMAINING_HOT_WATER, 'remaining-hot-water');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST, 'boost');
+    assert.equal(DEVICE_FEATURE_TYPES.CAMERA.ENABLED, 'enabled');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.MOVE, 'move');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PRESET, 'preset');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PAN_POSITION, 'pan-position');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.TILT_POSITION, 'tilt-position');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.ZOOM_POSITION, 'zoom-position');
     assert.equal(DEVICE_FEATURE_TYPES.SIREN.TEST_IN_PROGRESS, 'test-in-progress');
+    assert.equal(DEVICE_FEATURE_TYPES.SIREN.ALARM_MODE, 'alarm-mode');
+    assert.equal(DEVICE_FEATURE_TYPES.SIREN.ALARM_STATE, 'alarm-state');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY.CHARGING, 'charging');
     assert.equal(DEVICE_FEATURE_TYPES.ENERGY_PRODUCTION_SENSOR.POWER, 'power');
     assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.INPUT_POWER, 'input-power');
     assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.OUTPUT_INDEX, 'output-index');
