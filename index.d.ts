@@ -517,6 +517,49 @@ export interface WeatherPayload {
 }
 
 /**
+ * One house configured in Gladys, as returned by getHouses() (contract C.3).
+ * Requires `location: true` in the manifest. `latitude`/`longitude` are
+ * `null` when the house has not been located.
+ */
+export interface House {
+  id: string;
+  name: string;
+  selector: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Options of a movies request (contract B.19), as received by onMoviesGetUpcoming. */
+export interface MoviesGetUpcomingOptions {
+  /** Preferred language of the user, e.g. 'en', 'fr'. */
+  language?: string;
+  /** ISO 3166-1 alpha-2 region/country code, e.g. 'FR'. */
+  region?: string;
+  daysAhead?: number;
+}
+
+/**
+ * One entry of the pivot movies format resolved by onMoviesGetUpcoming
+ * (contract B.19), acked back to Gladys as `data.movies`. The payload is
+ * normalized and bounded by the Gladys core: an entry missing `id`, `title`
+ * or `releaseDate` is dropped rather than rejecting the whole list, and
+ * `posterUrl`/`trailerUrl`/`sourceUrl` are kept only when they parse as an
+ * `http:`/`https:` URL — they render unmodified as `img src` / `a href` on
+ * the dashboard.
+ */
+export interface MoviePayload {
+  id: string | number;
+  title: string;
+  /** ISO date string or Date. */
+  releaseDate: string | Date;
+  overview?: string;
+  posterUrl?: string;
+  trailerUrl?: string;
+  /** Link to the movie's page on the provider's own site. */
+  sourceUrl?: string;
+}
+
+/**
  * Modes of a webhook declared in the manifest `webhooks` field (contract
  * B.17): 'fire_and_forget' — the third party only awaits an acknowledgment
  * (the Netatmo-style event stream); 'sync' — the caller awaits the
@@ -1270,6 +1313,7 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     WEATHER_GET: string;
     WEATHER_GET_IMAGE: string;
     WEATHER_REFRESH: string;
+    MOVIES_GET_UPCOMING: string;
     MESSAGE_SEND: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
@@ -1455,6 +1499,14 @@ export declare class GladysIntegration extends EventEmitter {
    */
   getWebhooks(): Promise<WebhooksInfo>;
 
+  /**
+   * Fetch the houses configured in Gladys, sorted by name (contract C.3).
+   * Requires `location: true` in the manifest — a 403 GladysApiError
+   * otherwise. `latitude`/`longitude` are `null` when the house has not
+   * been located; several houses may exist.
+   */
+  getHouses(): Promise<House[]>;
+
   /** Fetch the configuration (secrets included); also refreshes `config`. */
   getConfig(): Promise<IntegrationConfig>;
 
@@ -1636,6 +1688,18 @@ export declare class GladysIntegration extends EventEmitter {
    * silently too while the WebSocket is disconnected.
    */
   requestWeatherRefresh(): void;
+
+  /**
+   * Handler called when Gladys asks a movies integration (manifest
+   * `type: "movies"`, contract B.19) for its upcoming releases (auto-acked)
+   * — the dashboard "Upcoming Releases" widget needs them. Resolve an array
+   * of pivot movie entries: it is acked back as `data.movies` — awaited
+   * under 15 s (not the standard 5 s) so a fresh third-party API call fits
+   * — then normalized and bounded by the Gladys core. Throwing acks the
+   * command as failed, and the Gladys provider loop falls through to the
+   * next provider.
+   */
+  onMoviesGetUpcoming(callback: (options: MoviesGetUpcomingOptions) => MoviePayload[] | Promise<MoviePayload[]>): void;
 
   /**
    * Handler of ONE webhook declared in the manifest `webhooks` field

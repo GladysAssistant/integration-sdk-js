@@ -20,6 +20,7 @@ import {
   GladysApiError,
   GladysIntegration,
   HardwareUpdatedContainer,
+  House,
   IntegrationConfig,
   IntegrationContainer,
   LinkedContact,
@@ -28,6 +29,8 @@ import {
   MessageContact,
   Logger,
   MdnsScanResult,
+  MoviePayload,
+  MoviesGetUpcomingOptions,
   NetworkActiveScanOptions,
   OutgoingMessage,
   SsdpScanResult,
@@ -237,8 +240,27 @@ const main = async (): Promise<void> => {
   gladys.requestWeatherRefresh();
   const weatherType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET;
   const weatherImageType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_GET_IMAGE;
+
+  const houses: House[] = await gladys.getHouses();
+  const houseLatitude: number | null = houses[0].latitude;
+  void houseLatitude;
+
+  gladys.onMoviesGetUpcoming(async (options: MoviesGetUpcomingOptions): Promise<MoviePayload[]> => {
+    const daysAhead: number | undefined = options.daysAhead;
+    void daysAhead;
+    const movie: MoviePayload = {
+      id: 42,
+      title: 'A movie',
+      releaseDate: new Date(),
+      overview: 'An overview.',
+      posterUrl: 'https://example.com/poster.jpg',
+      sourceUrl: 'https://example.com/movie/42',
+    };
+    return [movie];
+  });
+  const moviesType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.MOVIES_GET_UPCOMING;
   const weatherRefreshType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WEATHER_REFRESH;
-  void [weatherType, weatherImageType, weatherRefreshType];
+  void [weatherType, weatherImageType, weatherRefreshType, moviesType];
 
   await gladys.publishMessage('12345', 'Turn on the light');
   await gladys.publishMessage('12345', 'Received offline', { createdAt: new Date() });

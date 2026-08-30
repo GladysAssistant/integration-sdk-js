@@ -21,6 +21,7 @@ class FakeGladysServer {
     this.contacts = [];
     this.linkedUser = { selector: 'john', first_name: 'John', language: 'en' };
     this.webhooks = { available: false, webhooks: [] };
+    this.houses = [];
     this.status = {
       gladys_version: '4.62.0',
       service: { id: 'service-id', selector: 'ext-demo', status: 'RUNNING', version: '1.0.0' },
@@ -193,6 +194,9 @@ class FakeGladysServer {
           break;
         case 'GET /webhook':
           respond(200, this.webhooks);
+          break;
+        case 'GET /house':
+          respond(200, this.houses);
           break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });
