@@ -516,6 +516,19 @@ export interface WeatherPayload {
   images?: WeatherImage[];
 }
 
+/**
+ * One house configured in Gladys, as returned by getHouses() (contract C.3).
+ * Requires `location: true` in the manifest. `latitude`/`longitude` are
+ * `null` when the house has not been located.
+ */
+export interface House {
+  id: string;
+  name: string;
+  selector: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 /** Options of a movies request (contract B.19), as received by onMoviesGetUpcoming. */
 export interface MoviesGetUpcomingOptions {
   /** Preferred language of the user, e.g. 'en', 'fr'. */
@@ -1485,6 +1498,14 @@ export declare class GladysIntegration extends EventEmitter {
    * `available: false` (no Gladys Plus) → degrade to poll only.
    */
   getWebhooks(): Promise<WebhooksInfo>;
+
+  /**
+   * Fetch the houses configured in Gladys, sorted by name (contract C.3).
+   * Requires `location: true` in the manifest — a 403 GladysApiError
+   * otherwise. `latitude`/`longitude` are `null` when the house has not
+   * been located; several houses may exist.
+   */
+  getHouses(): Promise<House[]>;
 
   /** Fetch the configuration (secrets included); also refreshes `config`. */
   getConfig(): Promise<IntegrationConfig>;
