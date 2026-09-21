@@ -597,6 +597,300 @@ export interface DeviceTransportEntry {
 }
 
 /**
+ * A house configured in Gladys, as returned by GET /house (contract C.3).
+ * Only these five fields are ever returned — never the alarm mode or code.
+ */
+export interface House {
+  id: string;
+  name: string;
+  selector: string;
+  /** Null when the user has not located the house. */
+  latitude: number | null;
+  /** Null when the user has not located the house. */
+  longitude: number | null;
+}
+
+/**
+ * Flat details of a scene event (contract "scene triggers and actions"):
+ * at most 30 keys, one primitive per key — a string of at most 1000
+ * characters, a finite number, a boolean or null. Never a nested object or
+ * an array: the event carries details, not a payload to interpret.
+ */
+export type SceneEventData = Record<string, string | number | boolean | null>;
+
+/**
+ * Resolved values of a scene action's `fields` (contract "scene triggers and
+ * actions"): scene variables substituted, defaults applied, validated by the
+ * core against the declaration. A `source: "devices"` field carries the
+ * chosen device external_id. `section` fields store no value and never
+ * appear here.
+ */
+export type SceneActionFields = Record<string, unknown>;
+
+/**
+ * Outputs a scene action returns to the scene (contract "scene triggers and
+ * actions"): scalars only, under the declared `outputs` keys — the core
+ * drops undeclared keys, coerces each value to its declared type and caps
+ * strings at 10 000 characters. Never an image or a file: a picture takes
+ * the camera path (publishCameraImage + the core's message.send-camera).
+ */
+export type SceneActionOutputs = Record<string, string | number | boolean | null | undefined>;
+
+/**
+ * Text field of a widget content: a plain string, or a multi-language object
+ * whose `en` value is the fallback (contract C.1 language rule).
+ */
+export type WidgetText = string | MultiLanguageMessage;
+
+/** Semantic colors of the widget vocabulary, mapped by the core to theme colors. */
+export type WidgetColor = 'neutral' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
+
+export type WidgetTextVariant = 'heading' | 'body' | 'caption';
+
+export type WidgetChartType = 'line' | 'area' | 'bar' | 'stepline';
+
+/** History window of a device-bound chart (the chart box's interval enum). */
+export type WidgetChartInterval =
+  | 'last-hour'
+  | 'last-twelve-hours'
+  | 'last-day'
+  | 'last-three-days'
+  | 'last-week'
+  | 'last-month'
+  | 'last-three-months'
+  | 'last-year';
+
+export type WidgetCardListDisplay = 'grid' | 'list';
+
+export type WidgetImageFit = 'cover' | 'contain';
+
+export type WidgetButtonStyle = 'primary' | 'secondary' | 'danger';
+
+/**
+ * `text` component: escaped plain text. `heading` (≤ 40) and `caption`
+ * (≤ 80) are single-line; `body` (≤ 300, default) honors line breaks.
+ */
+export interface WidgetTextComponent {
+  type: 'text';
+  text: WidgetText;
+  variant?: WidgetTextVariant;
+}
+
+/**
+ * `value` component: a tile — one short value (a finite number, or a string
+ * ≤ 12 characters), a unit (≤ 6), a label (≤ 24). Or, in place of
+ * `value`/`unit`, `device_feature` (a feature external_id of the
+ * integration) for a live tile following the published states.
+ */
+export interface WidgetValueComponent {
+  type: 'value';
+  value?: number | WidgetText;
+  unit?: WidgetText;
+  device_feature?: string;
+  label?: WidgetText;
+  /** Feather icon name (`^[a-z0-9-]{1,40}$`). */
+  icon?: string;
+  color?: WidgetColor;
+}
+
+/**
+ * `gauge` component: a tile-sized radial arc — `value` with a finite
+ * `min < max`, or `device_feature` (range defaulting to the feature's).
+ */
+export interface WidgetGaugeComponent {
+  type: 'gauge';
+  value?: number;
+  min?: number;
+  max?: number;
+  unit?: WidgetText;
+  device_feature?: string;
+  label?: WidgetText;
+  color?: WidgetColor;
+}
+
+/** One row of a `status` component: label ≤ 40, value a number or a string ≤ 40. */
+export interface WidgetStatusItem {
+  label: WidgetText;
+  value: number | WidgetText;
+  icon?: string;
+  color?: WidgetColor;
+}
+
+/** `status` component: 1–10 label / value rows with a colored dot. */
+export interface WidgetStatusComponent {
+  type: 'status';
+  items: WidgetStatusItem[];
+}
+
+/** One point of an inline chart series: an ISO 8601 date and a finite number. */
+export interface WidgetChartPoint {
+  t: string;
+  v: number;
+}
+
+/** One inline series of a `chart` component (name ≤ 24, 1–300 points). */
+export interface WidgetChartSeries {
+  name?: WidgetText;
+  points: WidgetChartPoint[];
+}
+
+/**
+ * A marker the core draws on a chart: a vertical line at `t`, or a dot on
+ * the curve when `value` is given, with a short label (≤ 16) in its color.
+ */
+export interface WidgetChartAnnotation {
+  t: string;
+  value?: number;
+  label?: WidgetText;
+  color?: WidgetColor;
+}
+
+/**
+ * `chart` component: 1–4 inline `series` (data the core has no history of:
+ * a forecast, a charging plan, hourly prices), or 1–4 `device_features`
+ * plus an `interval` (the history the core already keeps). Zero styling.
+ */
+export interface WidgetChartComponent {
+  type: 'chart';
+  series?: WidgetChartSeries[];
+  device_features?: string[];
+  /** Device-bound form only; absent or unknown → 'last-day'. */
+  interval?: WidgetChartInterval;
+  chart_type?: WidgetChartType;
+  title?: WidgetText;
+  unit?: WidgetText;
+  /** ≤ 8 markers. */
+  annotations?: WidgetChartAnnotation[];
+  /** Dashed line at the current time, when the series span it. */
+  now_marker?: boolean;
+}
+
+/** A link of a card-list item: https only, domain displayed next to the label. */
+export interface WidgetLink {
+  url: string;
+  label?: WidgetText;
+}
+
+/**
+ * One item of a `card-list` component (title ≤ 60, subtitle ≤ 60, ISO
+ * `date`, an `image` key served through onWidgetGetImage, a badge ≤ 16, a
+ * description ≤ 2000 shown in the core's detail panel, ≤ 3 links).
+ */
+export interface WidgetCardListItem {
+  title: WidgetText;
+  subtitle?: WidgetText;
+  date?: string;
+  /** Image key (`^[a-z0-9][a-z0-9-]{0,63}$`), resolved through onWidgetGetImage. */
+  image?: string;
+  badge?: { text: WidgetText; color?: WidgetColor };
+  description?: WidgetText;
+  links?: WidgetLink[];
+}
+
+/**
+ * `card-list` component: a poster grid (`grid`, 1–12 items, 2:3 frames —
+ * the cinema case) or rows (`list`, default, 1–8 items, square thumbnails).
+ */
+export interface WidgetCardListComponent {
+  type: 'card-list';
+  display?: WidgetCardListDisplay;
+  items: WidgetCardListItem[];
+}
+
+/**
+ * `image` component: an image in a fixed 16:9 frame, served through
+ * onWidgetGetImage by key. When the bytes change, the key must change.
+ */
+export interface WidgetImageComponent {
+  type: 'image';
+  /** Image key (`^[a-z0-9][a-z0-9-]{0,63}$`). */
+  key: string;
+  alt?: WidgetText;
+  fit?: WidgetImageFit;
+}
+
+/**
+ * A widget action bound to a `button`: relayed to onWidgetAction with the
+ * declared `params` (≤ 1 KB, never user input). `confirm: true` makes the
+ * frontend ask before sending.
+ */
+export interface WidgetButtonAction {
+  /** `^[a-z0-9_]{2,32}$`, unique within the content. */
+  key: string;
+  params?: Record<string, unknown>;
+  confirm?: boolean;
+}
+
+/**
+ * `button` component (label ≤ 24): a pill carrying exactly one of `action`
+ * (a widget action), `device_feature` + `value` (the standard device command
+ * path, coming back through onSetValue) or `link` (https, new tab).
+ */
+export interface WidgetButtonComponent {
+  type: 'button';
+  label: WidgetText;
+  icon?: string;
+  style?: WidgetButtonStyle;
+  action?: WidgetButtonAction;
+  device_feature?: string;
+  value?: number;
+  link?: { url: string };
+}
+
+/** One component of a widget content (contract "dashboard widgets", section 4). */
+export type WidgetComponent =
+  | WidgetTextComponent
+  | WidgetValueComponent
+  | WidgetGaugeComponent
+  | WidgetStatusComponent
+  | WidgetChartComponent
+  | WidgetCardListComponent
+  | WidgetImageComponent
+  | WidgetButtonComponent;
+
+/**
+ * The content an onWidgetGet handler resolves (contract "dashboard widgets",
+ * sections 4 and 5), acked back to Gladys as `data.content`. The core
+ * normalizes and bounds it (unknown types and fields dropped, texts
+ * truncated, arrays capped) and applies the content budget: at most 8
+ * components, 1 focal (`chart` | `card-list` | `image`), 6 tiles (`value` |
+ * `gauge`), 2 texts (1 `body`), 1 `status`, 4 `button`s — dropped in
+ * content order beyond, so put what matters first. The card renders its
+ * slots in a canonical order whatever the order sent. An empty
+ * `components` array is a valid empty state, not an error.
+ */
+export interface WidgetContent {
+  /** Integer ≥ 1, default 1. */
+  version?: number;
+  /** Freshness of the content: 10-3600 s, default 60 — how fast the data moves. */
+  ttl_seconds?: number;
+  components: WidgetComponent[];
+}
+
+/**
+ * Instance settings of a widget (the declared `settings` of the manifest,
+ * defaults applied, validated by the core). A `source: "devices"` setting
+ * carries the chosen device external_id.
+ */
+export type WidgetSettings = Record<string, unknown>;
+
+/** What Gladys sends with a widget.get command (contract "dashboard widgets", section 10). */
+export interface WidgetGetOptions {
+  settings: WidgetSettings;
+  /** ISO 639-1 language of the requesting user (`fr`, `en`…). */
+  language: string;
+  /** Unit preference of the requesting user. */
+  units: WeatherUnits;
+}
+
+/**
+ * Message an onWidgetAction handler resolves, shown as a toast (≤ 200
+ * characters per language): a string, a multi-language object, or an
+ * explicit `{ message }` wrapper.
+ */
+export type WidgetActionResult = string | MultiLanguageMessage | { message: string | MultiLanguageMessage };
+
+/**
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
  */
@@ -679,6 +973,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ENERGY_SENSOR: 'energy-sensor';
   readonly ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor';
   readonly FAN: 'fan';
+  readonly GRID_CARBON_SENSOR: 'grid-carbon-sensor';
   readonly GRID_SENSOR: 'grid-sensor';
   readonly HEATER: 'heater';
   readonly HEPA_FILTER_MONITORING: 'hepa-filter-monitoring';
@@ -760,6 +1055,7 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly MIN: 'min';
     readonly MAX: 'max';
     readonly AVERAGE: 'average';
+    readonly PROBE: 'probe';
   };
   readonly SWITCH: {
     readonly BINARY: 'binary';
@@ -920,6 +1216,11 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly THIRTY_MINUTES_PRODUCTION: 'thirty-minutes-production';
     readonly THIRTY_MINUTES_PRODUCTION_REVENUE: 'thirty-minutes-production-revenue';
   };
+  readonly GRID_CARBON_SENSOR: {
+    readonly CARBON_INTENSITY: 'carbon-intensity';
+    readonly CARBON_FREE_PERCENTAGE: 'carbon-free-percentage';
+    readonly RENEWABLE_PERCENTAGE: 'renewable-percentage';
+  };
   readonly GRID_SENSOR: {
     readonly INPUT_POWER: 'input-power';
     readonly OUTPUT_POWER: 'output-power';
@@ -984,16 +1285,20 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly SMAXIN: 'smaxin';
     readonly SMAXIN_1: 'smaxin_1';
     readonly SMAXN: 'smaxn';
+    readonly SMAXN1: 'smaxn1';
     readonly SMAXN2: 'smaxn2';
     readonly SMAXN3: 'smaxn3';
     readonly SINSTS: 'sinsts';
+    readonly SINSTS1: 'sinsts1';
     readonly SINSTS2: 'sinsts2';
     readonly SINSTS3: 'sinsts3';
     readonly SMAXN_1: 'smaxn_1';
+    readonly SMAXN1_1: 'smaxn1_1';
     readonly SMAXN2_1: 'smaxn2_1';
     readonly SMAXN3_1: 'smaxn3_1';
     readonly HHPHC: 'hhphc';
     readonly IMAX: 'imax';
+    readonly IMAX1: 'imax1';
     readonly ADPS: 'adps';
     readonly IMAX2: 'imax2';
     readonly IMAX3: 'imax3';
@@ -1074,6 +1379,11 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly LIQUID_STATE: 'liquid-state';
     readonly LIQUID_LEVEL_PERCENT: 'liquid-level-percent';
     readonly LIQUID_DEPTH: 'liquid-depth';
+  };
+  readonly SMOKE_SENSOR: {
+    readonly CONTAMINATION_STATE: 'contamination-state';
+    readonly MUTED: 'muted';
+    readonly TEMPORARY_MUTE: 'temporary-mute';
   };
   readonly WATER_HEATER: {
     readonly BINARY: 'binary';
@@ -1182,6 +1492,7 @@ export declare const DEVICE_FEATURE_UNITS: {
   readonly KILOWATT_HOUR_PER_100_KM: 'kilowatt-hour-per-100-km';
   readonly WATT_HOUR_PER_MILE: 'watt-hour-per-mile';
   readonly KILOWATT_HOUR_PER_100_MILE: 'kilowatt-hour-per-100-mile';
+  readonly GRAM_CO2_EQ_PER_KILOWATT_HOUR: 'gram-co2eq-per-kilowatt-hour';
   readonly KM_PER_KILOWATT_HOUR: 'km-per-kilowatt-hour';
   readonly MILE_PER_KILOWATT_HOUR: 'mile-per-kilowatt-hour';
   readonly MM: 'mm';
@@ -1274,6 +1585,11 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
     WEBHOOK_UPDATED: string;
+    SCENE_ACTION_RUN: string;
+    WIDGET_GET: string;
+    WIDGET_GET_IMAGE: string;
+    WIDGET_ACTION: string;
+    WIDGET_REFRESH: string;
     HEARTBEAT: string;
   };
 };
@@ -1331,6 +1647,84 @@ export declare const WEATHER_ALERT_TYPES: {
   readonly COASTAL: 'coastal';
   readonly FOG: 'fog';
 };
+
+/** Semantic colors of the widget content vocabulary (contract "dashboard widgets"). */
+export declare const WIDGET_COLORS: {
+  readonly NEUTRAL: 'neutral';
+  readonly PRIMARY: 'primary';
+  readonly SUCCESS: 'success';
+  readonly WARNING: 'warning';
+  readonly DANGER: 'danger';
+  readonly INFO: 'info';
+};
+
+/** Variants of the widget `text` component. */
+export declare const WIDGET_TEXT_VARIANTS: {
+  readonly HEADING: 'heading';
+  readonly BODY: 'body';
+  readonly CAPTION: 'caption';
+};
+
+/** Rendering types of the widget `chart` component. */
+export declare const WIDGET_CHART_TYPES: {
+  readonly LINE: 'line';
+  readonly AREA: 'area';
+  readonly BAR: 'bar';
+  readonly STEPLINE: 'stepline';
+};
+
+/** History windows of a device-bound widget `chart`. */
+export declare const WIDGET_CHART_INTERVALS: {
+  readonly LAST_HOUR: 'last-hour';
+  readonly LAST_TWELVE_HOURS: 'last-twelve-hours';
+  readonly LAST_DAY: 'last-day';
+  readonly LAST_THREE_DAYS: 'last-three-days';
+  readonly LAST_WEEK: 'last-week';
+  readonly LAST_MONTH: 'last-month';
+  readonly LAST_THREE_MONTHS: 'last-three-months';
+  readonly LAST_YEAR: 'last-year';
+};
+
+/** Displays of the widget `card-list` component. */
+export declare const WIDGET_CARD_LIST_DISPLAYS: {
+  readonly GRID: 'grid';
+  readonly LIST: 'list';
+};
+
+/** Fits of the widget `image` component. */
+export declare const WIDGET_IMAGE_FITS: {
+  readonly COVER: 'cover';
+  readonly CONTAIN: 'contain';
+};
+
+/** Styles of the widget `button` component. */
+export declare const WIDGET_BUTTON_STYLES: {
+  readonly PRIMARY: 'primary';
+  readonly SECONDARY: 'secondary';
+  readonly DANGER: 'danger';
+};
+
+/**
+ * Validate a widget content the way the Gladys core will normalize it
+ * (contract "dashboard widgets", sections 4 and 5): returns, as
+ * human-readable strings, what the core would refuse (the whole content),
+ * drop (a component, an item) or silently alter (a truncated text, a
+ * clamped TTL, an ignored optional field). Empty when the content reaches
+ * the dashboard exactly as sent. Run by the SDK in dev mode
+ * (DEBUG=gladys-integration-sdk) on every content an onWidgetGet handler
+ * resolves; also handy in the integration's own tests.
+ */
+export declare function validateWidgetContent(content: unknown): string[];
+
+/**
+ * Validate an image the way the Gladys core will (contract "dashboard
+ * widgets", section 6): raw base64 of a PNG, JPEG or WebP (magic numbers)
+ * of at most 300 KB decoded, whose header declares at most 4096 × 4096
+ * pixels. Returns the violations as human-readable strings, empty when the
+ * core serves the image. Run by the SDK in dev mode on every image an
+ * onWidgetGetImage handler resolves.
+ */
+export declare function validateWidgetImage(rawBase64: unknown): string[];
 
 /**
  * Client of the Gladys host API + integration WebSocket. See the README for a
@@ -1390,6 +1784,18 @@ export declare class GladysIntegration extends EventEmitter {
   getDevices(): Promise<Device[]>;
 
   /**
+   * Fetch the houses configured in Gladys with their coordinates, sorted by
+   * name — for integrations that own their own geo-dependent logic (water
+   * restrictions, pollen, air quality…). Requires `location: true` in the
+   * manifest (403 otherwise). `latitude`/`longitude` are null when the user
+   * has not located the house, and several houses may exist. Fetch at
+   * startup and on reconnection: there is no update event. A weather
+   * integration needs neither this method nor `location: true` — the
+   * coordinates reach it in the `options` of every onWeatherGet call.
+   */
+  getHouses(): Promise<House[]>;
+
+  /**
    * Publish one device feature state: a number, `{ text }` for a text state, or
    * `{ state, created_at }` for a past state.
    */
@@ -1418,6 +1824,20 @@ export declare class GladysIntegration extends EventEmitter {
    * arrives in `gladys.config.GLADYS_PREFER_LOCAL`.
    */
   publishTransports(transports: DeviceTransportEntry[]): Promise<SuccessResponse>;
+
+  /**
+   * Fire a scene trigger declared in the manifest `scene_triggers` field:
+   * something HAPPENED (a plate recognized, an object detected, a doorbell
+   * pressed). The core matches the flat `data` against the filters the
+   * scene authors configured and starts the matching scenes, exposing the
+   * declared `variables` to their actions; every other key is dropped. A
+   * resolved call means "accepted and evaluated once", never "a scene ran".
+   * An event is a TRIGGER, never a state (a value is a device feature, a
+   * picture takes the camera path); one event per TRANSITION — the core
+   * admits 300 events per minute per integration (429 beyond). Throws a
+   * `GladysApiError` on 400 (payload refused), 404 (undeclared key), 429.
+   */
+  publishSceneEvent(key: string, data?: SceneEventData): Promise<SuccessResponse>;
 
   /**
    * Publish a message received in the external channel (communication
@@ -1674,6 +2094,80 @@ export declare class GladysIntegration extends EventEmitter {
       fields: ActionFields,
     ) => string | MultiLanguageMessage | void | Promise<string | MultiLanguageMessage | void>,
   ): void;
+
+  /**
+   * Handler of ONE scene action declared in the manifest `scene_actions`
+   * field, run when a scene reaches it (auto-acked). Registered per action
+   * `key`; receives the RESOLVED fields (variables substituted, defaults
+   * applied, validated by the core). Resolve an object of the declared
+   * `outputs` (scalars only) — acked back as `data.outputs` for the following
+   * actions of the scene — or `undefined` for none. Throwing fails that
+   * action only: the scene logs it and continues. The ack is awaited under
+   * the action's declared `timeout_seconds` (default 30 s), a deadline that
+   * starts when the scene reaches the action.
+   */
+  onSceneAction(
+    key: string,
+    callback: (fields: SceneActionFields) => SceneActionOutputs | void | Promise<SceneActionOutputs | void>,
+  ): void;
+
+  /**
+   * Handler of ONE dashboard widget declared in the manifest `widgets` field
+   * (auto-acked): Gladys pulls the content when a dashboard shows the widget
+   * (coalesced and cached core-side per settings, language and units).
+   * Registered per widget `key`; receives `{ settings, language, units }` —
+   * localize the texts and the values from them. Resolve the content in the
+   * core vocabulary: acked back as `data.content`, awaited under 15 s, then
+   * normalized, bounded and trimmed to the content budget by the core. In
+   * dev mode (DEBUG=gladys-integration-sdk) the SDK logs what the core would
+   * drop or truncate — see validateWidgetContent.
+   */
+  onWidgetGet(key: string, callback: (options: WidgetGetOptions) => WidgetContent | Promise<WidgetContent>): void;
+
+  /**
+   * Handler called when Gladys needs the bytes of an image declared in a
+   * widget content (auto-acked). Registered once for all keys (image keys are
+   * integration-scoped); resolve the RAW base64 (no `data:` URI prefix) of a
+   * PNG, JPEG or WebP of at most 300 KB decoded and at most 4096 × 4096
+   * pixels — the core validates and REFUSES, it never recompresses: resize
+   * integration-side. The core caches a validated image ONE HOUR by key: when
+   * the bytes change, the key must change. Awaited under 15 s. In dev mode
+   * the SDK logs why the core would refuse the image — see
+   * validateWidgetImage.
+   */
+  onWidgetGetImage(callback: (imageKey: string) => string | Promise<string>): void;
+
+  /**
+   * Handler of the `button` actions of ONE dashboard widget (auto-acked):
+   * the user tapped a button declared with an `action` in the content.
+   * Registered per widget `key`; receives the tapped `actionKey`, the
+   * `params` declared in the last normalized content (never user input) and
+   * `{ settings }`. Resolve an optional toast message (string,
+   * multi-language object or `{ message }`, ≤ 200 characters per language)
+   * or `undefined`. After a successful action the core drops the cached
+   * content and every open instance refetches. Awaited under the widget's
+   * declared `action_timeout_seconds` (default 30 s).
+   */
+  onWidgetAction(
+    key: string,
+    callback: (
+      actionKey: string,
+      params: Record<string, unknown>,
+      options: { settings: WidgetSettings },
+    ) => WidgetActionResult | void | Promise<WidgetActionResult | void>,
+  ): void;
+
+  /**
+   * Send a freshness nudge for ONE dashboard widget ("trigger, not data"):
+   * the core drops its cached content and every open instance re-pulls it
+   * through onWidgetGet, instead of waiting for the content `ttl_seconds`.
+   * Carries no data, expects no answer (fire-and-forget). Rate-limited by
+   * the core to 1 per 10 s per (integration, widget key), silently dropped
+   * beyond — and dropped silently too while the WebSocket is disconnected.
+   * Live device-bound tiles and charts need no nudge. Throws synchronously
+   * when `key` is not a declarable widget key (`^[a-z0-9_]{2,32}$`).
+   */
+  requestWidgetRefresh(key: string): void;
 
   on(event: 'connected' | 'disconnected', listener: () => void): this;
   once(event: 'connected' | 'disconnected', listener: () => void): this;

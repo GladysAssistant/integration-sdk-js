@@ -103,33 +103,36 @@ for the connection lifecycle logs, default `createLogger({ name: 'gladys-sdk' })
 
 All methods return Promises; host API errors are thrown as `GladysApiError { status, code, message }`.
 
-| Method                                     | Contract                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. A token refused by Gladys (close code 4000) keeps the loop armed but jumps straight to the max delay — the refusal may be transient, and the integration must never go zombie                         |
-| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                                               |
-| `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                                                     |
-| `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                                                      |
-| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` and its features' `supported_options` in Gladys (a LAN IP that changed in DHCP, a camera preset renamed…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead |
-| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                          |
-| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                       |
-| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                                            |
-| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                                                       |
-| `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline. Bidirectional channels only: a send-only channel (`messaging.receive: false`) is a 403 |
-| `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                        |
-| `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                     |
-| `requestWeatherRefresh()`                  | Weather integrations: fire-and-forget freshness nudge — asks the core to re-pull the weather NOW (through `onWeatherGet`) and re-evaluate the weather-alert scene triggers, instead of waiting for the 30-minute scheduled check. Carries no data, expects no answer; rate-limited core-side (1/min per integration, silently dropped beyond), dropped silently while disconnected                                                    |
-| `getWebhooks()`                            | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                             |
-| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                      |
-| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                           |
-| `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                             |
-| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, published ports (`{ container_port, protocol, host_port, label, name, browsable }`, `host_port: null` while none is assigned yet), granted/available hardware classes                                                                                                                                                                                          |
-| `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                |
-| `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                             |
-| `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                             |
-| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies   |
-| `wakeOnLan(mac, options?)`                 | Sends a standard Wake-on-LAN magic packet from the Gladys core network namespace (bridge containers cannot reach the LAN in broadcast). Requires `network_wake: true` in the manifest (403 otherwise); the core builds the fixed magic packet itself (never integration-provided bytes) and bounds the rate to 1 wake per 2 s per integration (429 beyond). Options: `{ address, port, sourcePort }`                                  |
+| Method                                     | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `connect()`                                | Opens the WebSocket, authenticates, resynchronizes (`GET /device` + `GET /config`), then resolves. Reconnects automatically for life with `min(1s * 2^n, 60s)` backoff; every reconnection re-authenticates and resynchronizes. A token refused by Gladys (close code 4000) keeps the loop armed but jumps straight to the max delay — the refusal may be transient, and the integration must never go zombie                                                                                                                                                |
+| `disconnect()`                             | Closes cleanly (no more reconnection)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `externalId(suffix)`                       | → `` `ext:${selector}:${suffix}` `` — the only documented way to build an `external_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `externalIds(type, platformId)`            | → `{ device, feature(key) }` — the ids of ONE physical device. `platformId` must come from the external platform (serial, MAC, Zigbee address…) so the ids stay unique and stable                                                                                                                                                                                                                                                                                                                                                                            |
+| `handleShutdown(cleanup?)`                 | Exits gracefully on SIGTERM/SIGINT: runs the optional `(signal) => Promise` cleanup, disconnects cleanly, then `process.exit(0)`                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `publishDiscoveredDevices(devices)`        | Publishes the complete list of discovered devices (replaces the previous one). Re-publishing a device the user already created silently upserts its `params` and its features' `supported_options` in Gladys (a LAN IP that changed in DHCP, a camera preset renamed…) without touching its name/features and without a `device-updated` echo; a structure change (features) shows an "Update" button in the Discovery screen instead                                                                                                                        |
+| `getHouses()`                              | Houses configured in Gladys with their coordinates (`[{ id, name, selector, latitude, longitude }]`, sorted by name) — for integrations that own their own geo-dependent logic (water restrictions, pollen, air quality…). Requires `location: true` in the manifest (403 otherwise); `latitude`/`longitude` are `null` for an unlocated house, several houses may exist. Fetch at startup and on reconnection, there is no update event. A weather integration needs neither this nor `location: true`: the coordinates arrive in every `onWeatherGet` call |
+| `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                                                                                                                                                                   |
+| `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                                                                                                                                                                              |
+| `publishSceneEvent(key, data?)`            | Fires a scene trigger declared in the manifest `scene_triggers`: something HAPPENED (plate recognized, object detected, doorbell pressed). `data` is flat — at most 30 keys, one primitive per key (string ≤ 1000 characters, finite number, boolean, null), validated before any request. The core matches it against the filters of the scenes and starts the matching ones; a resolved call means "accepted and evaluated once", never "a scene ran". 404 on an undeclared key, 429 past 300 events/minute per integration                                |
+| `publishMessage(contactId, text, opts?)`   | Communication integrations: a message received in the external channel. Gladys resolves the contact to the linked user and routes the message to the brain and the chat history; an unknown (not linked) contact is a 404 — answer "account not linked, code required" in the channel. `opts.createdAt` timestamps a message received offline. Bidirectional channels only: a send-only channel (`messaging.receive: false`) is a 403                                                                                                                        |
+| `linkContact(code, contactId, name?)`      | Communication integrations: link an external contact to the Gladys user who generated the code from the UI (single use, 15 min TTL). Resolves with the linked user (`{ selector, first_name, language }`); an invalid or expired code is a 404                                                                                                                                                                                                                                                                                                               |
+| `getContacts()`                            | Communication integrations: the linked contacts, each with its linked Gladys user                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `requestWeatherRefresh()`                  | Weather integrations: fire-and-forget freshness nudge — asks the core to re-pull the weather NOW (through `onWeatherGet`) and re-evaluate the weather-alert scene triggers, instead of waiting for the 30-minute scheduled check. Carries no data, expects no answer; rate-limited core-side (1/min per integration, silently dropped beyond), dropped silently while disconnected                                                                                                                                                                           |
+| `requestWidgetRefresh(key)`                | Dashboard widgets: fire-and-forget freshness nudge for ONE widget — the core drops its cached content and every open instance re-pulls it through `onWidgetGet`, instead of waiting for the content `ttl_seconds`. Carries no data; rate-limited core-side (1 per 10 s per widget, silently dropped beyond), dropped silently while disconnected. Live device-bound tiles and charts need no nudge                                                                                                                                                           |
+| `getWebhooks()`                            | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                                                                                                                                                    |
+| `getConfig()` / `setConfig(partialConfig)` | Configuration values; `getConfig` also refreshes `gladys.config`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `getStatus()`                              | Gladys version + integration service status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `setConnectionStatus(connected, message?)` | Application-level connection status shown in the Configuration screen (`message` is an optional multi-language object, e.g. `{ en: 'Token expired' }`). Distinct from the container state machine: a cloud integration can be RUNNING and still disconnected from its third-party service                                                                                                                                                                                                                                                                    |
+| `getContainers()`                          | Sub-containers declared in the manifest: Docker status, desired state, published ports (`{ container_port, protocol, host_port, label, name, browsable }`, `host_port: null` while none is assigned yet), granted/available hardware classes                                                                                                                                                                                                                                                                                                                 |
+| `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                                                                                                                                       |
+| `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies                                                                                                                          |
+| `wakeOnLan(mac, options?)`                 | Sends a standard Wake-on-LAN magic packet from the Gladys core network namespace (bridge containers cannot reach the LAN in broadcast). Requires `network_wake: true` in the manifest (403 otherwise); the core builds the fixed magic packet itself (never integration-provided bytes) and bounds the rate to 1 wake per 2 s per integration (429 beyond). Options: `{ address, port, sourcePort }`                                                                                                                                                         |
 
 ### Handlers
 
@@ -138,23 +141,27 @@ Register handlers before `connect()`. Commands are acked automatically: the hand
 commands that expect an answer) —, it throws → `success:false` with the error message, no handler registered →
 `success:false "not implemented"`.
 
-| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                                 |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise` — `value` is a number, except on the `text` category features whose commands are strings (the free text of `text`/`text`, the selected option value of a `text`/`select` dynamic select)                                                                                                               |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                               |
-| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                              |
-| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                                       |
-| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                              |
-| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                                        |
-| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                                 |
-| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember). Also called for an `account_link` field (a provider that never redirects back), with `redirectUri` undefined and no callback to expect                                                    |
-| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                               |
-| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                                         |
-| `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`)               |
-| `onWeatherGet(cb)`                                                    | `(options) => Promise<object>` — weather integrations (manifest `type: "weather"`): `options = { latitude, longitude, language, units }`; resolve the pivot weather format with values in the requested unit system (`'metric'` or `'us'`), it is acked back as `data.weather` (awaited under 15 s, not 5 s, so a fresh third-party API call fits) |
-| `onWeatherGetImage(cb)`                                               | `(key) => Promise<string>` — weather integrations: resolve the RAW base64 (no `data:` URI prefix) of a provider image declared in the pivot's `images` metadata (vigilance map, rain radar…); PNG or JPEG, ≤ 500 KB decoded, acked back as `data.image` (awaited under 15 s), validated and cached 10 minutes by the core                          |
-| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                                        |
-| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                                  |
+| Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise` — `value` is a number, except on the `text` category features whose commands are strings (the free text of `text`/`text`, the selected option value of a `text`/`select` dynamic select)                                                                                                                                                                                                                                                                               |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                                                                                                                                                                                              |
+| `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `onHardwareUpdated(cb)`                                               | `(containers) => Promise` — the hardware grants changed: regenerate the affected configs, then `startContainer`/`restartContainer`                                                                                                                                                                                                                                                                                                                                                                                 |
+| `onOAuthAuthorizeUrl(cb)`                                             | `(key, redirectUri) => Promise<string>` — build the provider authorization URL (client_id from the config, scopes, a `state` you generate and remember). Also called for an `account_link` field (a provider that never redirects back), with `redirectUri` undefined and no callback to expect                                                                                                                                                                                                                    |
+| `onOAuthCallback(cb)`                                                 | `(key, { code, state, redirectUri }) => Promise` — verify `state`, exchange the tokens, store them via `setConfig`, then `setConnectionStatus(true)`                                                                                                                                                                                                                                                                                                                                                               |
+| `onAction(key, cb)`                                                   | `(fields) => Promise<string \| object>` — handler of ONE action declared in the manifest, registered per `key`; the resolved message is shown under the button (ack awaited under the action's `timeout_seconds`, not 5 s)                                                                                                                                                                                                                                                                                         |
+| `onSendMessage(cb)`                                                   | `(contact, message) => Promise` — communication integrations: deliver `message` (`{ text, file }`) in the external channel. `contact` is the identity resolved by Gladys: `{ id }` for a channel linked by code (`messaging.receive: true`), or the target user's `contact_schema` values for a send-only channel (`receive: false`)                                                                                                                                                                               |
+| `onWeatherGet(cb)`                                                    | `(options) => Promise<object>` — weather integrations (manifest `type: "weather"`): `options = { latitude, longitude, language, units }`; resolve the pivot weather format with values in the requested unit system (`'metric'` or `'us'`), it is acked back as `data.weather` (awaited under 15 s, not 5 s, so a fresh third-party API call fits)                                                                                                                                                                 |
+| `onWeatherGetImage(cb)`                                               | `(key) => Promise<string>` — weather integrations: resolve the RAW base64 (no `data:` URI prefix) of a provider image declared in the pivot's `images` metadata (vigilance map, rain radar…); PNG or JPEG, ≤ 500 KB decoded, acked back as `data.image` (awaited under 15 s), validated and cached 10 minutes by the core                                                                                                                                                                                          |
+| `onWebhook(key, cb)`                                                  | `({ method, query, body, contentType }) => Promise` — handler of ONE webhook declared in the manifest, registered per `key`. `fire_and_forget`: the resolved value is ignored; `sync`: resolve `{ status?, contentType?, body? }` and it is returned to the third party through Gladys Plus                                                                                                                                                                                                                        |
+| `onSceneAction(key, cb)`                                              | `(fields) => Promise<object \| void>` — handler of ONE scene action declared in the manifest `scene_actions`, registered per `key`, run when a scene reaches it; `fields` are the RESOLVED values (scene variables substituted, defaults applied, validated by the core). Resolve an object of the declared `outputs` (scalars only) for the following actions of the scene, or `undefined`; throwing fails that action only, the scene continues. Ack awaited under the action's `timeout_seconds` (default 30 s) |
+| `onWidgetGet(key, cb)`                                                | `({ settings, language, units }) => Promise<content>` — handler of ONE dashboard widget declared in the manifest `widgets`, registered per `key`: resolve the content `{ version?, ttl_seconds?, components }` in the core vocabulary, localized from `language` and `units`; acked back as `data.content` (awaited under 15 s), normalized and trimmed to the content budget by the core                                                                                                                          |
+| `onWidgetGetImage(cb)`                                                | `(imageKey) => Promise<string>` — dashboard widgets: resolve the RAW base64 (no `data:` URI prefix) of an image key declared in a content; PNG, JPEG or WebP, ≤ 300 KB decoded, ≤ 4096 × 4096 px, cached one hour by key (a changing image needs a changing key). One handler for all keys, awaited under 15 s                                                                                                                                                                                                     |
+| `onWidgetAction(key, cb)`                                             | `(actionKey, params, { settings }) => Promise<string \| object \| void>` — dashboard widgets: the user tapped a `button` carrying an `action` in the widget's content; `params` are the ones declared in that content (never user input). Resolve an optional toast message (string, multi-language object or `{ message }`, ≤ 200 characters); the core then drops the cached content so every open instance refetches. Ack awaited under the widget's `action_timeout_seconds` (default 30 s)                    |
+| `onWebhookUpdated(cb)`                                                | `({ available, webhooks }) => Promise` — the Gladys Plus webhook availability changed (Plus linked/unlinked, key changed): re-register the fresh URLs at the third party, or degrade to poll only                                                                                                                                                                                                                                                                                                                  |
 
 ### Manifest actions
 
@@ -561,6 +568,219 @@ Two optional extensions complete the type:
 
 Requires a Gladys with weather-integrations support (check the `gladys_version` range of your manifest).
 
+### House location
+
+An integration that owns its own geo-dependent logic (water restrictions, pollen, air quality…) polls a third party
+at its own pace and publishes devices and states through the generic path — so it pulls the location itself
+instead of re-asking it in its config. Declare `"location": true` in the manifest (shown on the install screen:
+the home location is sensitive personal data) and fetch the houses at startup and on reconnection — coordinates
+change rarely, there is no update event:
+
+```js
+gladys.on('connected', async () => {
+  const houses = await gladys.getHouses(); // [{ id, name, selector, latitude, longitude }], sorted by name
+  const located = houses.filter((house) => house.latitude !== null); // several houses, some maybe unlocated
+  await refreshForecasts(located);
+});
+```
+
+Only these five fields are ever returned — never the alarm mode or code. Without `location: true` the call is a 403. A `type: "weather"` integration needs neither: the core owns that use case and passes the coordinates of the
+house in the `options` of every `onWeatherGet` call.
+
+### Scene triggers and actions
+
+An integration can extend the scene editor without a core update: declare `scene_triggers` (what _happens_ — a
+licence plate recognized, an object detected, a doorbell pressed, a mail received) and `scene_actions` (an
+_operation_ with parameters and a result — take a snapshot, clean these rooms, announce a text) in the manifest,
+with the same flat field format as the `config_schema`. The core renders the cards in the scene editor, matches
+the events against the filters the user configured, and relays the actions; the integration never learns which
+scenes exist.
+
+```json
+"scene_triggers": [
+  {
+    "key": "object_detected",
+    "label": { "en": "Object detected", "fr": "Objet détecté" },
+    "fields": [
+      { "key": "camera", "type": "select", "source": "devices", "label": { "en": "Camera" }, "required": true },
+      { "key": "label", "type": "multi_select", "label": { "en": "Object types" },
+        "options": [{ "value": "person", "label": { "en": "Person" } }, { "value": "car", "label": { "en": "Car" } }] }
+    ],
+    "variables": [
+      { "key": "label", "type": "string", "label": { "en": "Object type" } },
+      { "key": "score", "type": "number", "label": { "en": "Confidence" } }
+    ]
+  }
+],
+"scene_actions": [
+  {
+    "key": "create_snapshot",
+    "label": { "en": "Take a snapshot", "fr": "Prendre un instantané" },
+    "timeout_seconds": 20,
+    "fields": [
+      { "key": "camera", "type": "select", "source": "devices", "label": { "en": "Camera" }, "required": true },
+      { "key": "caption", "type": "string", "label": { "en": "Caption" } }
+    ],
+    "outputs": [{ "key": "clip_id", "type": "string", "label": { "en": "Clip identifier" } }]
+  }
+]
+```
+
+```js
+// Something happened → fire the trigger. `data` is flat: the core builds the
+// matcher's filters from the declared `fields` and the scene variables from
+// the declared `variables` ({{triggerEvent.data.label}}); every other key is
+// dropped, a declared key absent from `data` is null.
+frigate.on('object', async (event) => {
+  await gladys.publishSceneEvent('object_detected', {
+    camera: gladys.externalId(`cam:${event.camera}`),
+    label: event.label,
+    score: event.score,
+  });
+});
+
+// A scene reached the action → run it with the RESOLVED fields (scene
+// variables substituted, defaults applied, validated by the core), and return
+// the declared outputs for the following actions of the scene.
+gladys.onSceneAction('create_snapshot', async (fields) => {
+  const clipId = await frigate.snapshot(fields.camera, fields.caption); // your code
+  return { clip_id: clipId };
+});
+```
+
+The doctrines to know, in numbers:
+
+- **State vs event** — a value (a temperature, a switch, a presence) is a device feature published with
+  `publishState`; an event says "this happened, with these details" and never sets a state. Needing `>` on an event
+  value is the sign the value is a state. `data` is flat and bounded: ≤ 30 keys, one primitive per key (string
+  ≤ 1000 characters, finite number, boolean, null) — a snapshot goes through `publishCameraImage`, never here.
+- **One event per transition** — "object entered", debounced upstream, never one event per frame: the core admits
+  300 events per minute per integration (429 beyond, a counter separate from the states'), sized for a fleet of
+  cameras, not for a stream. A resolved call means "accepted and evaluated once", never "a scene ran".
+- **Outputs are scalars** — an identifier, a count, a short text (strings capped at 10 000 characters). A picture
+  produced by an action is published on a camera device with `publishCameraImage` and consumed by the core's
+  "send camera image" scene action. Resolving `undefined` means no outputs; throwing fails that action only — the
+  scene logs it and continues, a scene action is never a condition (declare an output and let the scene author
+  gate on it).
+- **Keys are forever** — a published `key` is never renamed (a renamed key is a removed key for every scene using
+  it); a declaration grows in the normal case; removing a key, or adding a `required` action field without a
+  `default`, is a breaking update (orphan cards in the editor, 404 on the event, failing action).
+- **No loops** — never fire an event as a consequence of a received action: a scene bound to that event would loop
+  through the integration.
+
+The ack of a scene action is awaited under its declared `timeout_seconds` (5–120, default 30) — a deadline that
+starts when the scene reaches the action, connection wait included. Requires a Gladys with scene-declarations
+support (check the `gladys_version` range of your manifest).
+
+### Dashboard widgets
+
+An integration can put its own data on the dashboard without a dedicated core widget: declare up to 5 `widgets`
+in the manifest (identity: key, label, icon, per-instance `settings` in the `config_schema` grammar), and produce
+the content at runtime in a declarative vocabulary the core renders — no HTML, no iframe, no CSS: the core
+guarantees theme, dark mode, responsiveness and translations for every widget, third-party ones included.
+
+```json
+"widgets": [
+  {
+    "key": "vacuum",
+    "label": { "en": "Robot vacuum", "fr": "Aspirateur robot" },
+    "icon": "wind",
+    "settings": [
+      { "key": "vacuum", "type": "select", "source": "devices", "label": { "en": "Vacuum" }, "required": true }
+    ],
+    "action_timeout_seconds": 30
+  }
+]
+```
+
+```js
+import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
+
+gladys.onWidgetGet('vacuum', async ({ settings, language, units }) => {
+  const state = await robot.getState(settings.vacuum); // your code; settings.vacuum = the chosen device external_id
+  return {
+    ttl_seconds: 30, // how fast the data moves (10-3600, default 60)
+    components: [
+      { type: 'value', label: { en: 'Battery' }, device_feature: `${settings.vacuum}:battery` }, // live tile
+      {
+        type: 'status',
+        items: [{ label: { en: 'State', fr: 'État' }, value: state.label[language], color: WIDGET_COLORS.SUCCESS }],
+      },
+      { type: 'image', key: `cleaning-map-${state.mapHash}`, alt: { en: 'Last cleaning map' } },
+      { type: 'button', label: { en: 'Start' }, style: 'primary', action: { key: 'start', params: { mode: 'full' } } },
+      { type: 'button', label: { en: 'Dock' }, device_feature: `${settings.vacuum}:dock`, value: 1 },
+    ],
+  };
+});
+
+gladys.onWidgetGetImage(async (imageKey) => {
+  const png = await robot.getMap(imageKey); // your code, returns a Buffer
+  // The core refuses (never recompresses) anything over 300 KB or 4096 px: resize integration-side.
+  return (await sharp(png).resize({ width: 800 }).webp().toBuffer()).toString('base64');
+});
+
+gladys.onWidgetAction('vacuum', async (actionKey, params, { settings }) => {
+  await robot.send(settings.vacuum, actionKey, params); // your code
+  return { en: 'Cleaning started', fr: 'Nettoyage lancé' }; // optional toast
+});
+
+robot.on('state', () => gladys.requestWidgetRefresh('vacuum')); // "re-pull me now", rate-limited 1 per 10 s
+```
+
+The vocabulary (eight component types, every text a plain string or a multi-language object with `en`):
+
+| `type`      | Fields                                                                                                                                                                                                                      | Renders as                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `text`      | `text`, `variant` (`heading` ≤ 40 \| `body` ≤ 300, default \| `caption` ≤ 80)                                                                                                                                               | escaped plain text; `body` honors line breaks                                            |
+| `value`     | `value` (number, or string ≤ 12), `unit` ≤ 6, `label` ≤ 24, `icon`, `color` — or `device_feature` (a feature `external_id`) in place of `value`/`unit`                                                                      | a tile; device-bound → live, follows the published states                                |
+| `gauge`     | `value`, `min` < `max`, `label`, `unit`, `color` — or `device_feature` (range defaulting to the feature's)                                                                                                                  | a radial arc tile                                                                        |
+| `status`    | `items` (1–10 of `{ label ≤ 40, value (number or string ≤ 40), icon, color }`)                                                                                                                                              | label / value rows with a colored dot                                                    |
+| `chart`     | `series` (1–4 of `{ name, points: [{ t: ISO date, v }] }` ≤ 300 points) or `device_features` (1–4) + `interval`; `chart_type` (`line` \| `area` \| `bar` \| `stepline`), `title`, `unit`, `annotations` (≤ 8), `now_marker` | the chart box rendering, zero styling; annotations mark the points a curve is read for   |
+| `card-list` | `display` (`grid` 1–12 items \| `list` 1–8, default), `items` of `{ title ≤ 60, subtitle, date, image (key), badge { text ≤ 16, color }, description ≤ 2000, links (≤ 3 of { url https, label }) }`                         | a poster grid or rows; an item with a description or links opens the core's detail panel |
+| `image`     | `key` (`^[a-z0-9][a-z0-9-]{0,63}$`), `alt`, `fit` (`cover` \| `contain`)                                                                                                                                                    | an image in a fixed 16:9 frame                                                           |
+| `button`    | `label` ≤ 24, `icon`, `style` (`primary` \| `secondary` \| `danger`), and exactly one of `action { key, params?, confirm? }`, `device_feature` + `value`, or `link { url }`                                                 | a pill; `action` → `onWidgetAction`, `device_feature` → `onSetValue`, `link` → a new tab |
+
+`icon` is a Feather icon name, `color` a semantic enum (`WIDGET_COLORS`: `neutral` \| `primary` \| `success` \|
+`warning` \| `danger` \| `info`), `url`s are https only. The rules that keep every widget card-shaped:
+
+- **The content budget** — at most 8 components, 1 focal (`chart` \| `card-list` \| `image`), 6 tiles (`value` \|
+  `gauge`), 2 texts (1 `body`), 1 `status`, 4 `button`s. Beyond a cap the core drops components in content order:
+  put what matters first. The card renders its slots in a canonical order (header texts, tiles, focal, status,
+  buttons) whatever the order sent.
+- **The payload is never trusted** — unknown component types and fields are dropped, texts truncated, arrays
+  capped, a component missing a required field is dropped (never the whole content). `version` (integer ≥ 1,
+  default 1) exists for a breaking change the vocabulary is designed never to make; a content over 256 KB is
+  refused. An empty `components` array is a valid empty state.
+- **Images are served by the integration** — the browser never loads a third-party URL and the core never fetches
+  one: the content declares keys, `onWidgetGetImage` resolves the raw base64 of a PNG, JPEG or WebP of at most
+  300 KB decoded and 4096 × 4096 px, validated by magic numbers, size and header. The core caches a validated image
+  **one hour by key**: when the bytes change, the key must change (`cleaning-map-<hash>`) — and the core never
+  recompresses, so resize integration-side (a grid poster renders under 300 px wide, a 16:9 frame under 800 px).
+- **Pull, cached, nudged** — the core pulls the content (15 s ack) on mount and on `ttl_seconds` expiry, coalesced
+  across open dashboards and cached per settings, language and units; `requestWidgetRefresh(key)` only means
+  "re-pull me now" (rate-limited 1 per 10 s per widget). Device-bound tiles and charts follow the published states
+  over the core's real-time path with no nudge at all.
+- **Read and tap** — a widget displays data and offers buttons; the standard controls (setpoints, sliders) are
+  device features rendered by the core widgets. A `button` `action` carries exactly what the integration declared
+  (`params`, never user input) and the acting user is anonymous; `confirm: true` asks before sending.
+
+**Dev mode**: with `DEBUG=gladys-integration-sdk`, the SDK validates every content and image the handlers resolve
+against the vocabulary, the budget and the image bounds, and logs the violations on stderr — "`components[3].value`:
+is required", "`status` component dropped by the content budget (a second status list)", "`378 KB decoded, 300 KB
+allowed`" — so a widget that ships is a widget that fits. The same checks are exported for your tests:
+
+```js
+import { validateWidgetContent, validateWidgetImage } from '@gladysassistant/integration-sdk';
+
+assert.deepEqual(validateWidgetContent(await buildContent()), []); // [] = rendered exactly as sent
+assert.deepEqual(validateWidgetImage(await buildMap()), []);
+```
+
+Widget-only integrations (a cinema releases grid, a fuel-price widget) declare the manifest type `"provider"`: no
+device surface, a configuration-only page, and at least one capability field (`widgets`, `scene_triggers`,
+`scene_actions`). Requires a Gladys with dashboard-widgets support (check the `gladys_version` range of your
+manifest).
+
 ### Camera images
 
 A camera is a regular device carrying a `camera`/`image` feature (`DEVICE_FEATURE_CATEGORIES.CAMERA` +
@@ -861,7 +1081,8 @@ polling loop while Gladys is unreachable.
 
 - Responds to WebSocket protocol pings (native to the `ws` library).
 - Logs the connection lifecycle only (see the Logger section) — silenceable with the `logger` option; everything
-  else stays silent unless `DEBUG=gladys-integration-sdk` enables the SDK debug logs on stderr.
+  else stays silent unless `DEBUG=gladys-integration-sdk` enables the SDK debug logs on stderr (which also turn on
+  the dev-mode validation of the dashboard widget contents and images).
 - Persists nothing on disk: everything resynchronizes, `/data` stays fully owned by the integration.
 - Unknown message types are ignored silently (forward compatibility).
 

@@ -54,6 +54,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.NO2_SENSOR, 'no2-sensor');
     assert.equal(DEVICE_FEATURE_CATEGORIES.O3_SENSOR, 'o3-sensor');
     assert.equal(DEVICE_FEATURE_CATEGORIES.SO2_SENSOR, 'so2-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.GRID_CARBON_SENSOR, 'grid-carbon-sensor');
   });
 
   it('should expose the canonical type strings, grouped by category', () => {
@@ -74,6 +75,17 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.REMAINING_HOT_WATER, 'remaining-hot-water');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST, 'boost');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.ENABLED, 'enabled');
+    assert.equal(DEVICE_FEATURE_TYPES.TEMPERATURE_SENSOR.PROBE, 'probe');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_CARBON_SENSOR.CARBON_INTENSITY, 'carbon-intensity');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_CARBON_SENSOR.CARBON_FREE_PERCENTAGE, 'carbon-free-percentage');
+    assert.equal(DEVICE_FEATURE_TYPES.GRID_CARBON_SENSOR.RENEWABLE_PERCENTAGE, 'renewable-percentage');
+    assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.SINSTS1, 'sinsts1');
+    assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.SMAXN1, 'smaxn1');
+    assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.SMAXN1_1, 'smaxn1_1');
+    assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.IMAX1, 'imax1');
+    assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.CONTAMINATION_STATE, 'contamination-state');
+    assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.MUTED, 'muted');
+    assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.TEMPORARY_MUTE, 'temporary-mute');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.MOVE, 'move');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PRESET, 'preset');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.PAN_POSITION, 'pan-position');
@@ -97,6 +109,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_UNITS.PERCENT, 'percent');
     assert.equal(DEVICE_FEATURE_UNITS.WATT, 'watt');
     assert.equal(DEVICE_FEATURE_UNITS.CUBIC_METER_PER_HOUR, 'cubic-meter-per-hour');
+    assert.equal(DEVICE_FEATURE_UNITS.GRAM_CO2_EQ_PER_KILOWATT_HOUR, 'gram-co2eq-per-kilowatt-hour');
   });
 
   it('should only contain string values (categories and units)', () => {

@@ -58,6 +58,34 @@ describe('host API REST methods', () => {
     });
   });
 
+  describe('gladys.getHouses()', () => {
+    it('should GET /house and resolve with the houses and their coordinates', async () => {
+      server.houses = [
+        { id: 'house-1', name: 'Home', selector: 'home', latitude: 48.85, longitude: 2.35 },
+        { id: 'house-2', name: 'Mountain cabin', selector: 'mountain-cabin', latitude: null, longitude: null },
+      ];
+      const houses = await gladys.getHouses();
+      assert.deepEqual(houses, server.houses);
+      const requests = server.getRequests('GET', '/house');
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].authorization, `Bearer ${server.token}`);
+    });
+
+    it('should throw a GladysApiError when the manifest does not declare location: true (403)', async () => {
+      server.forceResponse('GET', '/house', 403, {
+        status: 403,
+        code: 'FORBIDDEN',
+        message: 'location: the manifest does not declare location: true',
+      });
+      await assert.rejects(gladys.getHouses(), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 403);
+        assert.equal(error.code, 'FORBIDDEN');
+        return true;
+      });
+    });
+  });
+
   describe('gladys.publishState(featureExternalId, value)', () => {
     it('should publish a numeric state', async () => {
       const response = await gladys.publishState('ext:ext-demo:sensor:temperature', 21.5);
