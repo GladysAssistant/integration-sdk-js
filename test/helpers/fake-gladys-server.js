@@ -15,6 +15,7 @@ class FakeGladysServer {
     this.requests = [];
     // Data returned by the REST endpoints.
     this.devices = [];
+    this.houses = [];
     this.config = {};
     this.containers = [];
     this.networkScanResults = [];
@@ -150,6 +151,12 @@ class FakeGladysServer {
           break;
         case 'GET /device':
           respond(200, this.devices);
+          break;
+        case 'GET /house':
+          respond(200, this.houses);
+          break;
+        case 'POST /scene/event':
+          respond(200, { success: true });
           break;
         case 'GET /config':
           respond(200, { config: this.config });

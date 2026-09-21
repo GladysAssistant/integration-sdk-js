@@ -20,6 +20,7 @@ import {
   GladysApiError,
   GladysIntegration,
   HardwareUpdatedContainer,
+  House,
   IntegrationConfig,
   IntegrationContainer,
   LinkedContact,
@@ -30,8 +31,13 @@ import {
   MdnsScanResult,
   NetworkActiveScanOptions,
   OutgoingMessage,
+  SceneActionFields,
+  SceneActionOutputs,
+  SceneEventData,
   SsdpScanResult,
   UdpBroadcastScanResult,
+  validateWidgetContent,
+  validateWidgetImage,
   WakeOnLanOptions,
   WEATHER_ALERT_SEVERITIES,
   WEATHER_ALERT_TYPES,
@@ -48,6 +54,20 @@ import {
   WebhooksInfo,
   WebhookSyncResponse,
   WEBSOCKET_MESSAGE_TYPES,
+  WIDGET_BUTTON_STYLES,
+  WIDGET_CARD_LIST_DISPLAYS,
+  WIDGET_CHART_INTERVALS,
+  WIDGET_CHART_TYPES,
+  WIDGET_COLORS,
+  WIDGET_IMAGE_FITS,
+  WIDGET_TEXT_VARIANTS,
+  WidgetActionResult,
+  WidgetChartComponent,
+  WidgetColor,
+  WidgetComponent,
+  WidgetContent,
+  WidgetGetOptions,
+  WidgetSettings,
 } from '@gladysassistant/integration-sdk';
 
 const main = async (): Promise<void> => {
@@ -265,6 +285,74 @@ const main = async (): Promise<void> => {
   await gladys.wakeOnLan('64:e4:d5:b4:12:66');
   const wakeOptions: WakeOnLanOptions = { address: '192.168.1.255', port: 9, sourcePort: 0 };
   await gladys.wakeOnLan('64E4D5B41266', wakeOptions);
+
+  // Houses (location: true in the manifest): coordinates may be null.
+  const houses: House[] = await gladys.getHouses();
+  const latitude: number | null = houses[0].latitude;
+  void latitude;
+
+  // Scene triggers and actions declared by the manifest.
+  const eventData: SceneEventData = {
+    camera: gladys.externalId('cam:front'),
+    label: 'person',
+    score: 0.92,
+    zone: null,
+  };
+  await gladys.publishSceneEvent('object_detected', eventData);
+  await gladys.publishSceneEvent('doorbell_pressed');
+  gladys.onSceneAction('create_snapshot', async (fields: SceneActionFields): Promise<SceneActionOutputs> => {
+    return { clip_id: `clip-${String(fields.camera)}`, count: 1 };
+  });
+  gladys.onSceneAction('clean', async () => {});
+  const sceneActionType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.SCENE_ACTION_RUN;
+  void sceneActionType;
+
+  // Dashboard widgets declared by the manifest.
+  gladys.onWidgetGet('vacuum', async (options: WidgetGetOptions): Promise<WidgetContent> => {
+    const settings: WidgetSettings = options.settings;
+    const units: 'metric' | 'us' = options.units;
+    const color: WidgetColor = WIDGET_COLORS.SUCCESS;
+    const chart: WidgetChartComponent = {
+      type: 'chart',
+      chart_type: WIDGET_CHART_TYPES.AREA,
+      device_features: [gladys.externalId('solar:power')],
+      interval: WIDGET_CHART_INTERVALS.LAST_DAY,
+      annotations: [{ t: '2026-09-21T12:00:00Z', value: 2.1, label: 'Peak', color: WIDGET_COLORS.WARNING }],
+      now_marker: true,
+    };
+    const components: WidgetComponent[] = [
+      { type: 'text', variant: WIDGET_TEXT_VARIANTS.HEADING, text: { en: 'Vacuum', fr: 'Aspirateur' } },
+      { type: 'value', value: 82, unit: '%', label: { en: 'Battery' }, icon: 'battery', color },
+      { type: 'value', device_feature: gladys.externalId(`${String(settings.vacuum)}:battery`) },
+      { type: 'gauge', value: 42, min: 0, max: 100, label: 'Level' },
+      { type: 'status', items: [{ label: { en: 'State' }, value: { en: 'Docked' }, color }] },
+      chart,
+      {
+        type: 'card-list',
+        display: WIDGET_CARD_LIST_DISPLAYS.GRID,
+        items: [{ title: 'Movie', date: '2026-10-07', image: 'poster-1', links: [{ url: 'https://tmdb.org' }] }],
+      },
+      { type: 'image', key: 'cleaning-map-3f9a2c', fit: WIDGET_IMAGE_FITS.CONTAIN },
+      { type: 'button', label: 'Start', style: WIDGET_BUTTON_STYLES.PRIMARY, action: { key: 'start', confirm: true } },
+      { type: 'button', label: 'Dock', device_feature: gladys.externalId('vacuum:dock'), value: 1 },
+      { type: 'button', label: 'Help', link: { url: 'https://docs.example' } },
+    ];
+    void units;
+    return { version: 1, ttl_seconds: 30, components };
+  });
+  gladys.onWidgetGetImage(async (imageKey: string) => Buffer.from(imageKey).toString('base64'));
+  gladys.onWidgetAction('vacuum', async (actionKey: string, params: Record<string, unknown>, options) => {
+    const settings: WidgetSettings = options.settings;
+    const result: WidgetActionResult = { en: `${actionKey} ${String(params.mode)} ${String(settings.vacuum)}` };
+    return result;
+  });
+  gladys.onWidgetAction('solar', async () => 'Refreshed');
+  gladys.onWidgetAction('silent', async () => {});
+  gladys.requestWidgetRefresh('vacuum');
+  const contentIssues: string[] = validateWidgetContent({ components: [] });
+  const imageIssues: string[] = validateWidgetImage('iVBORw0KGgo=');
+  const widgetType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WIDGET_GET;
+  void [contentIssues, imageIssues, widgetType];
 
   // PTZ camera (CAMERA.MOVE/PRESET) and dynamic select (TEXT.SELECT):
   // enum-like features narrowed per device through supported_options.
