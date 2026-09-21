@@ -1648,10 +1648,6 @@ export declare const WEATHER_ALERT_TYPES: {
   readonly FOG: 'fog';
 };
 
-/**
- * Client of the Gladys host API + integration WebSocket. See the README for a
- * complete example.
- */
 /** Semantic colors of the widget content vocabulary (contract "dashboard widgets"). */
 export declare const WIDGET_COLORS: {
   readonly NEUTRAL: 'neutral';
@@ -1730,6 +1726,10 @@ export declare function validateWidgetContent(content: unknown): string[];
  */
 export declare function validateWidgetImage(rawBase64: unknown): string[];
 
+/**
+ * Client of the Gladys host API + integration WebSocket. See the README for a
+ * complete example.
+ */
 export declare class GladysIntegration extends EventEmitter {
   constructor(options?: GladysIntegrationOptions);
 

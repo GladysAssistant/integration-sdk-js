@@ -213,12 +213,12 @@ describe('validateWidgetContent(content) — dev-mode mirror of the core normali
       ],
     });
     assert.deepEqual(issues, [
-      'components[0].items: has 11 rows, 10 allowed: the extra rows are dropped',
+      'components[0].items: has 11 rows past the invalid ones, 10 allowed: the extra rows are dropped',
       'components[1].series: has 5 series, 4 allowed: the extra ones are dropped',
-      'components[1].series[0].points: has 301 points, 300 allowed: the extra ones are dropped',
-      'components[1].series[1].points: has 301 points, 300 allowed: the extra ones are dropped',
-      'components[1].series[2].points: has 301 points, 300 allowed: the extra ones are dropped',
-      'components[1].series[3].points: has 301 points, 300 allowed: the extra ones are dropped',
+      'components[1].series[0].points: has 301 points past the invalid ones, 300 allowed: the extra ones are dropped',
+      'components[1].series[1].points: has 301 points past the invalid ones, 300 allowed: the extra ones are dropped',
+      'components[1].series[2].points: has 301 points past the invalid ones, 300 allowed: the extra ones are dropped',
+      'components[1].series[3].points: has 301 points past the invalid ones, 300 allowed: the extra ones are dropped',
       'components[1].annotations: has 9 entries, 8 allowed: the extra ones are dropped',
     ]);
     const list = validateWidgetContent({
@@ -232,8 +232,57 @@ describe('validateWidgetContent(content) — dev-mode mirror of the core normali
         },
       ],
     });
-    assert.equal(list[0], 'components[0].items: has 9 items, 8 allowed in "list": the extra ones are dropped');
-    assert.equal(list[1], 'components[0].items[0].links: has 4 links, 3 allowed: the extra ones are dropped');
+    assert.equal(list[0], 'components[0].items[0].links: has 4 links, 3 allowed: the extra ones are dropped');
+    assert.equal(
+      list[list.length - 1],
+      'components[0].items: has 9 items past the invalid ones, 8 allowed in "list": the extra ones are dropped',
+    );
+  });
+
+  it('should let a later valid item fill the slot of an invalid one, like the core (never a slice at the cap)', () => {
+    // 10 valid rows preceded by an invalid one: the core keeps the 10 valid rows
+    const rows = validateWidgetContent({
+      components: [
+        { type: 'status', items: ['nope', ...Array.from({ length: 10 }, (_, i) => ({ label: `L${i}`, value: i }))] },
+      ],
+    });
+    assert.deepEqual(rows, ['components[0].items[0]: must be an object, dropped']);
+    // 8 valid items preceded by one without a title, in list display
+    const items = validateWidgetContent({
+      components: [
+        { type: 'card-list', items: [{ subtitle: 'x' }, ...Array.from({ length: 8 }, (_, i) => ({ title: `T${i}` }))] },
+      ],
+    });
+    assert.deepEqual(items, ['components[0].items[0].title: is required']);
+    // 300 valid points preceded by a bad one
+    const points = validateWidgetContent({
+      components: [
+        {
+          type: 'chart',
+          series: [
+            {
+              points: [
+                { t: 'bad', v: 1 },
+                ...Array.from({ length: 300 }, (_, i) => ({ t: new Date(i * 1000).toISOString(), v: i })),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    assert.deepEqual(points, [
+      'components[0].series[0].points: contains points without a valid ISO `t` and a finite `v`, dropped',
+    ]);
+    // one more valid row than the cap, after an invalid one: the extra row is dropped
+    const overflow = validateWidgetContent({
+      components: [
+        { type: 'status', items: ['nope', ...Array.from({ length: 11 }, (_, i) => ({ label: `L${i}`, value: i }))] },
+      ],
+    });
+    assert.deepEqual(overflow, [
+      'components[0].items[0]: must be an object, dropped',
+      'components[0].items: has 11 rows past the invalid ones, 10 allowed: the extra rows are dropped',
+    ]);
   });
 
   it('should validate the device-bound forms and the button kinds', () => {
@@ -418,6 +467,18 @@ describe('validateWidgetImage(rawBase64) — dev-mode mirror of the core image c
     assert.deepEqual(validateWidgetImage(pngBase64(10, 10, 300 * 1024)), []);
     assert.deepEqual(validateWidgetImage(pngBase64(10, 10, 300 * 1024 + 1)), [
       'image: 301 KB decoded, 300 KB allowed — resize it integration-side',
+    ]);
+  });
+
+  it('should refuse a base64 string that cannot decode under 300 KB before decoding it, like the core', () => {
+    // 400 KB of raw bytes → the base64 alone proves the bound is exceeded
+    const huge = pngBase64(10, 10, 400 * 1024);
+    assert.deepEqual(validateWidgetImage(huge), [
+      'image: at least 401 KB received, 300 KB allowed — resize it integration-side',
+    ]);
+    // not even valid base64, but too long to bother decoding
+    assert.deepEqual(validateWidgetImage('$'.repeat(600 * 1024)), [
+      'image: at least 450 KB received, 300 KB allowed — resize it integration-side',
     ]);
   });
 
