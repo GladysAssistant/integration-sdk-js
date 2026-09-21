@@ -1,3 +1,8 @@
+## [0.14.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.13.0...v0.14.0) (2026-09-21)
+
+### Features
+
+* resync with Gladys master (scene triggers/actions, dashboard widgets, houses, grid carbon and smoke sensors) ([#34](https://github.com/GladysAssistant/integration-sdk-js/issues/34)) ([f3cc09f](https://github.com/GladysAssistant/integration-sdk-js/commit/f3cc09f49c1934ad935f054cadabdbb8b7186ad9))
 ## [0.13.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.12.0...v0.13.0) (2026-08-27)
 
 ### Features
