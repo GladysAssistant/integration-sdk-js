@@ -154,6 +154,66 @@ describe('gladys.publishChangedStates(states, options?)', () => {
     assert.equal(postedStates().length, 1);
   });
 
+  it('should run overlapping calls one after the other, in call order', async (t) => {
+    const gate = deferred();
+    const sent = [];
+    t.mock.method(gladys, 'publishStates', async (batch) => {
+      sent.push(batch.map(({ state }) => state));
+      if (sent.length === 1) {
+        await gate.promise;
+      }
+      return { success: true };
+    });
+    const first = gladys.publishChangedStates([{ device_feature_external_id: TEMPERATURE, state: 21 }]);
+    const second = gladys.publishChangedStates([{ device_feature_external_id: TEMPERATURE, state: 22 }]);
+    await new Promise(setImmediate);
+    // The second request waits for the first one to be answered.
+    assert.deepEqual(sent, [[21]]);
+    gate.resolve();
+    assert.deepEqual(await Promise.all([first, second]), [
+      { success: true, count: 1 },
+      { success: true, count: 1 },
+    ]);
+    assert.deepEqual(sent, [[21], [22]]);
+    // The memory matches the last value Gladys received.
+    assert.equal(
+      (await gladys.publishChangedStates([{ device_feature_external_id: TEMPERATURE, state: 22 }])).count,
+      0,
+    );
+  });
+
+  it('should not let a failed call block the next one', async (t) => {
+    let calls = 0;
+    t.mock.method(gladys, 'publishStates', async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error('fetch failed');
+      }
+      return { success: true };
+    });
+    const first = gladys.publishChangedStates([{ device_feature_external_id: TEMPERATURE, state: 21 }]);
+    const second = gladys.publishChangedStates([{ device_feature_external_id: TEMPERATURE, state: 22 }]);
+    await assert.rejects(first, /fetch failed/);
+    assert.deepEqual(await second, { success: true, count: 1 });
+  });
+
+  it('should keep a value forgotten while its request was in flight forgotten', async (t) => {
+    const gate = deferred();
+    t.mock.method(gladys, 'publishStates', async () => {
+      await gate.promise;
+      return { success: true };
+    });
+    const states = [{ device_feature_external_id: TEMPERATURE, state: 21 }];
+    const pending = gladys.publishChangedStates(states);
+    await new Promise(setImmediate);
+    // E.g. the device is created while the state is on its way: Gladys may
+    // have dropped it.
+    gladys.forgetPublishedStates('ext:ext-demo:sensor:1');
+    gate.resolve();
+    await pending;
+    assert.equal((await gladys.publishChangedStates(states)).count, 1);
+  });
+
   it('should throw when states is not an array', async () => {
     await assert.rejects(gladys.publishChangedStates({ state: 1 }), /"states" must be an array/);
   });

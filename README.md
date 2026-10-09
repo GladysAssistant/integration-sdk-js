@@ -1074,8 +1074,9 @@ await gladys.publishChangedStates(states, { heartbeat: 30 * 60 * 1000 });
 
 It takes the `publishStates` format and remembers, per feature, the last value published through it: an entry
 equal to it (same `state`, same `text`) is skipped — within the same call too — and nothing is sent when nothing
-changed (`{ success: true, count: 0 }`). Batches above 100 states are split. A value is remembered only once Gladys
-accepted it: a failed request (network error, `429`…) throws, and its states are sent again by the next call. The
+changed (`{ success: true, count: 0 }`). Batches above 100 states are split, and calls run one after the other — a
+poll loop and a live event path can both call it, Gladys receives the values in call order. A value is remembered
+only once Gladys accepted it: a failed request (network error, `429`…) throws, and its states are sent again by the next call. The
 SDK forgets the values of a device when the user creates, updates or deletes it — Gladys silently drops the states
 of a feature that does not exist yet, so they must be re-sent once it does; call
 `gladys.forgetPublishedStates(externalId?)` yourself when you know Gladys lost a value.
@@ -1188,7 +1189,8 @@ test('publishes the temperature on poll', async () => {
   rejects so the test sees it. `fake.send(type, payload)` sends any other WebSocket message.
 - **The lifecycle**: `connect()` / `disconnect()` also await your async `'connected'` / `'disconnected'`
   listeners (an error they throw rejects), and `handleShutdown(cleanup)` does not touch the process signals:
-  `gladys.fake.shutdown(signal?)` runs the cleanup then disconnects, without exiting.
+  `gladys.fake.shutdown(signal?)` runs the cleanup then disconnects, without exiting — it disconnects even when the
+  cleanup throws, and the cleanup error then rejects.
 
 To make a host API call fail, mock the method — e.g. a rate-limited `publishStates` with the `node:test` mock:
 

@@ -650,6 +650,16 @@ describe('createFakeGladys(options?)', () => {
       assert.deepEqual(signals, ['SIGTERM', 'SIGINT']);
     });
 
+    it('should disconnect even when the cleanup throws, then reject with its error', async () => {
+      const gladys = createFakeGladys();
+      gladys.handleShutdown(async () => {
+        throw new Error('cleanup failed');
+      });
+      await gladys.connect();
+      await assert.rejects(gladys.fake.shutdown(), /cleanup failed/);
+      assert.equal(gladys.connected, false);
+    });
+
     it('should only disconnect without cleanup', async () => {
       const gladys = createFakeGladys();
       gladys.handleShutdown();

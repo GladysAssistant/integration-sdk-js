@@ -1862,7 +1862,8 @@ export declare class GladysIntegration extends EventEmitter {
    * Publish only the states whose value changed since the last one published
    * through this method for the same feature (POST /state is rate-limited to
    * 300 states/minute, sized for changes, not snapshots). Splits batches above
-   * 100 states; a value is remembered only once Gladys accepted it, so a
+   * 100 states; calls run one after the other, so Gladys receives the values
+   * in call order; a value is remembered only once Gladys accepted it, so a
    * failed request is re-sent by the next call. The remembered values of a
    * device are forgotten when the user creates, updates or deletes it.
    */

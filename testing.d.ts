@@ -186,7 +186,10 @@ export interface FakeGladys {
     params?: Record<string, unknown>,
     options?: { settings?: WidgetSettings },
   ): Promise<FakeGladysAck>;
-  /** The supervisor stops the container: run the handleShutdown cleanup, then disconnect (without exiting). */
+  /**
+   * The supervisor stops the container: run the handleShutdown cleanup, then disconnect (without exiting). The
+   * client disconnects even when the cleanup throws; the cleanup error then rejects.
+   */
   shutdown(signal?: 'SIGTERM' | 'SIGINT'): Promise<void>;
 }
 
