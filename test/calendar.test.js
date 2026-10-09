@@ -411,9 +411,24 @@ describe('calendar integrations (manifest type "calendar")', () => {
         fullDay('2026-08-15', 'Aug 16 2026'),
         /"events\[0\]\.end" must be a calendar date \(YYYY-MM-DD\) on a full-day event/,
       );
+      // A date that does not exist rolls over in JavaScript (Date.parse accepts
+      // "2026-02-30" as March 2): refused like the core does, not forwarded.
+      for (const date of ['2026-02-30', '2026-04-31', '2026-02-29']) {
+        await assert.rejects(
+          fullDay(date),
+          /"events\[0\]\.start" must be a calendar date \(YYYY-MM-DD\) on a full-day event/,
+          date,
+        );
+        await assert.rejects(
+          fullDay('2026-08-15', `${date}T00:00:00Z`),
+          /"events\[0\]\.end" must be a calendar date \(YYYY-MM-DD\) on a full-day event/,
+          date,
+        );
+      }
       await fullDay('2026-08-15');
       await fullDay('2026-08-15T00:00:00+02:00', '2026-08-16T00:00:00+02:00');
       await fullDay(new Date('2026-08-15T12:00:00Z'));
+      await fullDay('2024-02-29', '2024-03-01');
       const bodies = server.getRequests('POST', '/calendar/event').map((request) => request.body.events[0]);
       assert.deepEqual(
         bodies.map((event) => [event.start, event.end]),
@@ -421,8 +436,27 @@ describe('calendar integrations (manifest type "calendar")', () => {
           ['2026-08-15', undefined],
           ['2026-08-15T00:00:00+02:00', '2026-08-16T00:00:00+02:00'],
           ['2026-08-15T12:00:00.000Z', undefined],
+          ['2024-02-29', '2024-03-01'],
         ],
       );
+    });
+
+    it('should order the dates of a full-day event by calendar date, never by instant', async () => {
+      const fullDay = (start, end) =>
+        gladys.publishCalendarEvents(calendarId, [
+          { external_id: gladys.externalId('john:day'), name: 'Day', start, end, full_day: true },
+        ]);
+      // The instants are reversed (08-16T04:00Z, then 08-15T15:00Z), the calendar dates are not.
+      await fullDay('2026-08-15T23:00:00-05:00', '2026-08-16T00:00:00+09:00');
+      // Same day: the core covers the start day.
+      await fullDay('2026-08-15', '2026-08-15');
+      // The instants are ordered (08-15T15:00Z, then 08-16T04:00Z), the calendar dates are reversed.
+      await assert.rejects(
+        fullDay('2026-08-16T00:00:00+09:00', '2026-08-15T23:00:00-05:00'),
+        /"events\[0\]\.end" must not be before "start"/,
+      );
+      await assert.rejects(fullDay('2026-08-16', '2026-08-15'), /"events\[0\]\.end" must not be before "start"/);
+      assert.equal(server.getRequests('POST', '/calendar/event').length, 2);
     });
 
     it('should throw a GladysApiError on a sync-disabled calendar (403) and an unknown one (404)', async () => {

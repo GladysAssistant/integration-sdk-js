@@ -104,6 +104,18 @@ describe('energy contracts capability (manifest energy_contracts)', () => {
         gladys.publishEnergyCalendar('tempo', [{ date: 20260112, value: 'red' }]),
         /"entries\[0\]\.date" must be a YYYY-MM-DD date/,
       );
+      // A month or a day out of range, or a date that does not exist (rolled
+      // over by Date.parse), never leaves the integration.
+      for (const date of ['2026-13-01', '2026-01-32', '2026-02-30']) {
+        await assert.rejects(
+          gladys.publishEnergyCalendar('tempo', [{ date, value: 'red' }]),
+          /"entries\[0\]\.date" must be a YYYY-MM-DD date that exists/,
+          date,
+        );
+      }
+      await gladys.publishEnergyCalendar('tempo', [{ date: '2024-02-29', value: 'red' }]);
+      assert.equal(server.getRequests('POST', '/energy/calendar').length, 1);
+      server.requests = [];
       await assert.rejects(
         gladys.publishEnergyCalendar('tempo', [{ starts_at: 'monday', value: 'red' }]),
         /"entries\[0\]\.starts_at" must be an ISO 8601 date string or a Date/,
