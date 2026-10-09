@@ -89,6 +89,19 @@ export interface Device {
   external_id: string;
   features?: DeviceFeature[];
   params?: DeviceParam[];
+  /**
+   * Whether the Gladys scheduler polls the device (calls onPoll). Default
+   * false: a device is polled only with `should_poll: true` AND a
+   * `poll_frequency`.
+   */
+  should_poll?: boolean;
+  /**
+   * Interval between two polls, in MILLISECONDS — one of
+   * DEVICE_POLL_FREQUENCIES (1 s, 2 s, 10 s, 15 s, 30 s or 1 min); any
+   * other value is rejected by publishDiscoveredDevices with a 400.
+   * Nothing slower than once a minute: for a slower pace, skip polls in
+   * onPoll or run your own timer.
+   */
   poll_frequency?: number;
   [key: string]: unknown;
 }
@@ -121,6 +134,21 @@ export interface IntegrationStatus {
 /** Generic success response of the host API. */
 export interface SuccessResponse {
   success: boolean;
+}
+
+/** Options of publishChangedStates. */
+export interface PublishChangedStatesOptions {
+  /**
+   * Re-publish an unchanged value once its last publication is older than
+   * this many milliseconds. Default: never.
+   */
+  heartbeat?: number;
+}
+
+/** Response of publishChangedStates. */
+export interface PublishChangedStatesResponse extends SuccessResponse {
+  /** Number of states actually published (0: nothing changed, no request sent). */
+  count: number;
 }
 
 /** Response of POST /discovered_device. */
@@ -242,7 +270,7 @@ export interface UdpBroadcastScanResult {
  * scan browses every `mdns` entry declared in the manifest and merges their
  * results. `host` and `port` stay null when no SRV record was seen during
  * the scan window; `txt` holds the raw TXT record entries (usually
- * `key=value` strings) — parsing them is the integration's job.
+ * `key=value` strings) — parseMdnsTxt turns them into an object.
  */
 export interface MdnsScanResult {
   name: string;
@@ -1560,6 +1588,29 @@ export declare const DEVICE_FEATURE_UNITS: {
   readonly DECIBEL: 'decibel';
 };
 
+/**
+ * The only values a device `poll_frequency` accepts, in MILLISECONDS (mirror
+ * of server/utils/constants.js). The device must also carry `should_poll: true`.
+ */
+export declare const DEVICE_POLL_FREQUENCIES: {
+  readonly EVERY_MINUTES: 60000;
+  readonly EVERY_30_SECONDS: 30000;
+  readonly EVERY_15_SECONDS: 15000;
+  readonly EVERY_10_SECONDS: 10000;
+  readonly EVERY_2_SECONDS: 2000;
+  readonly EVERY_SECONDS: 1000;
+};
+
+/**
+ * Parse the raw TXT record entries of an 'mdns' scan result
+ * (`["id=AA:BB", "sf=1"]`) into an object, following RFC 6763 section 6:
+ * keys lowercased (they are case-insensitive), the value is everything after
+ * the first '=', an entry without '=' is a boolean attribute (`true`), only
+ * the first occurrence of a key counts. Empty entries and empty keys are
+ * ignored; anything but an array gives `{}`.
+ */
+export declare function parseMdnsTxt(txt: string[] | null | undefined): Record<string, string | true>;
+
 /** WebSocket message types of the integration protocol (contract C.4). */
 export declare const WEBSOCKET_MESSAGE_TYPES: {
   AUTHENTICATE: { INTEGRATION_REQUEST: string };
@@ -1808,6 +1859,25 @@ export declare class GladysIntegration extends EventEmitter {
   publishStates(states: DeviceState[]): Promise<SuccessResponse>;
 
   /**
+   * Publish only the states whose value changed since the last one published
+   * through this method for the same feature (POST /state is rate-limited to
+   * 300 states/minute, sized for changes, not snapshots). Splits batches above
+   * 100 states; a value is remembered only once Gladys accepted it, so a
+   * failed request is re-sent by the next call. The remembered values of a
+   * device are forgotten when the user creates, updates or deletes it.
+   */
+  publishChangedStates(
+    states: DeviceState[],
+    options?: PublishChangedStatesOptions,
+  ): Promise<PublishChangedStatesResponse>;
+
+  /**
+   * Forget the values remembered by publishChangedStates: one feature, one
+   * device (all its `<device>:<feature>` ids), or everything when omitted.
+   */
+  forgetPublishedStates(externalId?: string): void;
+
+  /**
    * Publish a new image of a camera device of the integration (a device
    * carrying a `camera`/`image` feature): the dashboard camera widget updates
    * in real time. `image` is an `image/jpg;base64,...` string, limited to
@@ -1954,7 +2024,12 @@ export declare class GladysIntegration extends EventEmitter {
     callback: (device: Device, deviceFeature: DeviceFeature, value: number | string) => void | Promise<void>,
   ): void;
 
-  /** Handler called when the Gladys scheduler asks to poll a device (auto-acked). */
+  /**
+   * Handler called when the Gladys scheduler asks to poll a device
+   * (auto-acked). Only the devices published with `should_poll: true` and a
+   * `poll_frequency` in MILLISECONDS among DEVICE_POLL_FREQUENCIES (1 s to
+   * 1 min) are scheduled.
+   */
   onPoll(callback: (device: Device) => void | Promise<void>): void;
 
   /**

@@ -122,8 +122,18 @@ describe('module exports', () => {
     assert.equal(esm.DEVICE_FEATURE_CATEGORIES, sdk.DEVICE_FEATURE_CATEGORIES);
     assert.equal(esm.DEVICE_FEATURE_TYPES, sdk.DEVICE_FEATURE_TYPES);
     assert.equal(esm.DEVICE_FEATURE_UNITS, sdk.DEVICE_FEATURE_UNITS);
+    assert.equal(esm.DEVICE_POLL_FREQUENCIES, sdk.DEVICE_POLL_FREQUENCIES);
+    assert.equal(esm.parseMdnsTxt, sdk.parseMdnsTxt);
     assert.equal(esm.createLogger, sdk.createLogger);
     assert.equal(esm.logger, sdk.logger);
     assert.equal(esm.default.GladysIntegration, GladysIntegration);
+  });
+
+  it('should expose the testing helpers through the CJS and ESM subpaths', async () => {
+    const testing = require('../lib/testing');
+    const esm = await import('../esm/testing.mjs');
+    assert.equal(typeof testing.createFakeGladys, 'function');
+    assert.equal(esm.createFakeGladys, testing.createFakeGladys);
+    assert.equal(esm.default.createFakeGladys, testing.createFakeGladys);
   });
 });

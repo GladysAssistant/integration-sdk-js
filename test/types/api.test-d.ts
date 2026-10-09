@@ -11,6 +11,7 @@ import {
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
   DEVICE_FEATURE_UNITS,
+  DEVICE_POLL_FREQUENCIES,
   DEVICE_TRANSPORTS,
   DeviceExternalIds,
   DeviceFeature,
@@ -31,6 +32,8 @@ import {
   MdnsScanResult,
   NetworkActiveScanOptions,
   OutgoingMessage,
+  parseMdnsTxt,
+  PublishChangedStatesResponse,
   SceneActionFields,
   SceneActionOutputs,
   SceneEventData,
@@ -82,6 +85,8 @@ const main = async (): Promise<void> => {
       {
         name: 'Virtual switch',
         external_id: gladys.externalId('switch'),
+        should_poll: true,
+        poll_frequency: DEVICE_POLL_FREQUENCIES.EVERY_MINUTES,
         features: [
           {
             name: 'On/Off',
@@ -158,6 +163,15 @@ const main = async (): Promise<void> => {
 
   await gladys.publishState(gladys.externalId('sensor:text'), { text: 'hello' });
   await gladys.publishStates([{ device_feature_external_id: gladys.externalId('sensor:temperature'), state: 20 }]);
+  const changed: PublishChangedStatesResponse = await gladys.publishChangedStates(
+    [{ device_feature_external_id: gladys.externalId('sensor:temperature'), state: 20 }],
+    { heartbeat: 30 * 60 * 1000 },
+  );
+  const changedCount: number = changed.count;
+  gladys.forgetPublishedStates(gladys.externalId('sensor'));
+  gladys.forgetPublishedStates();
+  const everyMinute: 60000 = DEVICE_POLL_FREQUENCIES.EVERY_MINUTES;
+  void [changedCount, everyMinute];
 
   await gladys.publishCameraImage(gladys.externalId('cam:abc'), 'image/jpg;base64,/9j/4AAQ');
   const transport: DeviceTransport = DEVICE_TRANSPORTS.LOCAL;
@@ -271,6 +285,9 @@ const main = async (): Promise<void> => {
   const payload: string = announcements[0].payload_base64;
   const services: MdnsScanResult[] = await gladys.scanNetwork('mdns');
   const txt: string[] = services[0].txt;
+  const parsedTxt: Record<string, string | true> = parseMdnsTxt(txt);
+  const accessoryId: string | true | undefined = parsedTxt.id;
+  void accessoryId;
   const responders: SsdpScanResult[] = await gladys.scanNetwork('ssdp', { timeoutSeconds: 5 });
   const headers: string = responders[0].headers;
   const mac: string | undefined = responders[0].source_mac;
