@@ -4,12 +4,18 @@
 
 import {
   ActionFields,
+  CalendarAccount,
   Device,
   DeviceFeature,
   DeviceState,
+  EnergyCalendarEntry,
+  EnergyContract,
+  EnergyCurrentRequest,
+  EnergyPriceRequest,
   GladysIntegration,
   HardwareUpdatedContainer,
   House,
+  IntegrationCalendar,
   IntegrationConfig,
   IntegrationContainer,
   IntegrationStatus,
@@ -23,9 +29,23 @@ import {
   WebhookMode,
   WebhookRequest,
   WebhooksInfo,
+  WidgetActionValues,
   WidgetSettings,
   WeatherUnits,
 } from './index';
+
+/** An event stored by the fake Gladys: the published event (wire format) with its calendar. */
+export interface FakeCalendarEvent {
+  calendar_external_id: string;
+  external_id: string;
+  name: string;
+  start: string;
+  end?: string;
+  full_day?: boolean;
+  location?: string;
+  description?: string;
+  url?: string;
+}
 
 /** Options of createFakeGladys: the data the fake host API serves. */
 export interface FakeGladysOptions {
@@ -47,6 +67,19 @@ export interface FakeGladysOptions {
   scanResults?: Record<string, unknown[]>;
   /** User returned by linkContact (any code is accepted). */
   linkedUser?: LinkedUser;
+  /** Users who enabled a calendar integration (GET /calendar/account). Default: none. */
+  calendarAccounts?: CalendarAccount[];
+  /** Calendars already pushed (GET /calendar), with their user-owned `sync`/`shared` flags. */
+  calendars?: IntegrationCalendar[];
+  /** Events already pushed, each with its `calendar_external_id`. */
+  calendarEvents?: FakeCalendarEvent[];
+  /**
+   * Declared tariff calendars (the manifest `energy_contracts.calendars`): key →
+   * entries `[{ starts_at, value }]`. A key absent here is undeclared (403).
+   */
+  energyCalendars?: Record<string, EnergyCalendarEntry[]>;
+  /** Contracts referencing the integration templates (GET /energy/contract). */
+  energyContracts?: EnergyContract[];
   /** GET /status response. */
   status?: IntegrationStatus;
   /** SDK logger. Default: silent. */
@@ -55,9 +88,11 @@ export interface FakeGladysOptions {
 
 /** One host API request received by the fake Gladys. */
 export interface FakeGladysRequest {
-  method: 'GET' | 'POST';
-  /** Path relative to /api/integration/v1, e.g. '/state'. */
+  method: 'GET' | 'POST' | 'DELETE';
+  /** Path relative to /api/integration/v1, e.g. '/state' — without its query string. */
   path: string;
+  /** Query string parameters, when the request had some (`?user=`, `?external_id=`…). */
+  query?: Record<string, string>;
   /** JSON body, as received (after the SDK mapping and the JSON serialization). */
   body?: any;
   /** 200, or the status of the error the fake answered (400 on an invalid payload). */
@@ -89,6 +124,19 @@ export interface FakeGladys {
   webhooks: WebhooksInfo;
   scanResults: Record<string, unknown[]>;
   linkedUser: LinkedUser;
+  /** Users who enabled a calendar integration; `publishCalendars` answers 404 for any other user. */
+  calendarAccounts: CalendarAccount[];
+  /**
+   * The integration's calendars: the ones given as options plus the ones
+   * pushed (`sync: true`, `shared: false`, a selector derived from the name),
+   * minus the deleted ones. Toggle `sync`/`shared` here like a user would.
+   */
+  calendars: IntegrationCalendar[];
+  /** The events pushed so far, upserted and pruned like the core does. */
+  calendarEvents: FakeCalendarEvent[];
+  /** Declared tariff calendars (key → entries), fed by `publishEnergyCalendar`. */
+  energyCalendars: Record<string, EnergyCalendarEntry[]>;
+  energyContracts: EnergyContract[];
   status: IntegrationStatus;
 
   /** Every host API request received, in order — rejected ones included (status 400). */
@@ -123,11 +171,25 @@ export interface FakeGladys {
   readonly widgetRefreshes: string[];
   /** The number of weather refresh nudges. */
   readonly weatherRefreshes: number;
+  /** Every published calendar batch, in order (wire format). */
+  readonly publishedCalendars: { user: string; calendars: Record<string, unknown>[] }[];
+  /** Every published event batch, in order (wire format). */
+  readonly publishedCalendarEvents: {
+    calendar_external_id: string;
+    events: Record<string, unknown>[];
+    window?: { from: string; to: string };
+  }[];
+  /** The external_id of every deleted calendar, in order. */
+  readonly deletedCalendars: string[];
+  /** Every published energy calendar batch, in order (wire format). */
+  readonly publishedEnergyCalendars: { calendar_key: string; entries: Record<string, unknown>[] }[];
+  /** The number of energy recalculation nudges. */
+  readonly energyRecalculations: number;
 
   /** Last value published for a feature: its `state` (its `text` for a text state), undefined if none. */
   lastState(featureExternalId: string): number | string | undefined;
   /** Bodies of the accepted requests to one host API endpoint, in order. */
-  bodies(method: 'GET' | 'POST', path: string): any[];
+  bodies(method: 'GET' | 'POST' | 'DELETE', path: string): any[];
 
   /** Send any WebSocket message to the integration (low level); resolves with the ack, undefined for an event. */
   send(type: string, payload?: Record<string, unknown>): Promise<FakeGladysAck | undefined>;
@@ -179,13 +241,25 @@ export interface FakeGladys {
   ): Promise<FakeGladysAck>;
   /** Gladys needs the bytes of a widget image (onWidgetGetImage); the image is in `data.image`. */
   widgetGetImage(imageKey: string): Promise<FakeGladysAck>;
-  /** The user taps a widget button (onWidgetAction); the message is in `data.message`. */
+  /**
+   * The user taps a widget button (onWidgetAction); the message is in `data.message`. `values` is the typed form of a
+   * button declaring `fields`, relayed as is (the core validates it in production).
+   */
   widgetAction(
     key: string,
     actionKey: string,
     params?: Record<string, unknown>,
-    options?: { settings?: WidgetSettings },
+    options?: { settings?: WidgetSettings; values?: WidgetActionValues },
   ): Promise<FakeGladysAck>;
+  /**
+   * A user enabled or disabled a calendar integration, changed their account values or toggled a calendar
+   * (onCalendarAccountUpdated). The served data is not changed: set `calendarAccounts` / `calendars` first.
+   */
+  calendarAccountUpdated(userSelector: string): Promise<void>;
+  /** Gladys asks for the delegated pricing of a billing period (onEnergyPrice); the costs are in `data.costs`. */
+  energyPrice(request: EnergyPriceRequest): Promise<FakeGladysAck>;
+  /** Gladys asks for the current price of a delegated contract (onEnergyCurrent); the price is in `data`. */
+  energyCurrent(request: EnergyCurrentRequest): Promise<FakeGladysAck>;
   /**
    * The supervisor stops the container: run the handleShutdown cleanup, then disconnect (without exiting). The
    * client disconnects even when the cleanup throws; the cleanup error then rejects.

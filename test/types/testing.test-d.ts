@@ -29,6 +29,13 @@ const main = async (): Promise<void> => {
     ],
     houses: [{ id: 'house-1', name: 'Home', selector: 'home', latitude: null, longitude: null }],
     scanResults: { mdns: [] },
+    calendarAccounts: [{ user: { selector: 'john', first_name: 'John', language: 'en' }, config: {} }],
+    calendars: [],
+    calendarEvents: [
+      { calendar_external_id: 'ext:weather:john:c', external_id: 'ext:weather:john:e', name: 'E', start: '2026-08-14' },
+    ],
+    energyCalendars: { tempo: [{ starts_at: '2026-01-12T05:00:00.000Z', value: 'red' }] },
+    energyContracts: [],
   });
   registerHandlers(gladys);
   await gladys.connect();
@@ -47,6 +54,26 @@ const main = async (): Promise<void> => {
   await gladys.fake.scanRequest();
   gladys.fake.houses = [];
   const refreshes: string[] = gladys.fake.widgetRefreshes;
+  await gladys.fake.widgetAction('pellets', 'delivery', {}, { values: { bags: 72 } });
+  await gladys.fake.calendarAccountUpdated('john');
+  const priceAck: FakeGladysAck = await gladys.fake.energyPrice({
+    contract: {
+      id: 'c',
+      template_key: 't',
+      inputs: {},
+      currency: 'EUR',
+      timezone: 'Europe/Paris',
+      billing_period_start_day: 1,
+    },
+    billing_period: { starts_at: '2026-01-01T00:00:00.000Z', ends_at: '2026-02-01T00:00:00.000Z' },
+    cumulative_before: { day: 0, month: 0, billing_period: 0 },
+    intervals: [{ starts_at: '2026-01-12T05:00:00.000Z', kwh: 1, max_power_kw: 2 }],
+  });
+  const deleted: string[] = gladys.fake.deletedCalendars;
+  const recalculations: number = gladys.fake.energyRecalculations;
+  gladys.fake.calendars[0].sync = false;
+  const query: Record<string, string> | undefined = requests[0].query;
+  void [priceAck, deleted, recalculations, query];
   await gladys.fake.shutdown('SIGINT');
 
   void [success, error, last, states, status, widgetAck, webhookAck, refreshes];

@@ -22,6 +22,10 @@ class FakeGladysServer {
     this.contacts = [];
     this.linkedUser = { selector: 'john', first_name: 'John', language: 'en' };
     this.webhooks = { available: false, webhooks: [] };
+    this.calendarAccounts = [];
+    this.calendars = [];
+    this.energyCalendarEntries = [];
+    this.energyContracts = [];
     this.status = {
       gladys_version: '4.62.0',
       service: { id: 'service-id', selector: 'ext-demo', status: 'RUNNING', version: '1.0.0' },
@@ -117,9 +121,11 @@ class FakeGladysServer {
       rawBody += chunk;
     });
     req.on('end', () => {
-      const path = req.url.replace(API_PREFIX, '');
+      // The query string is recorded apart from the path (a DELETE target, a filter).
+      const [path, search] = req.url.replace(API_PREFIX, '').split('?');
+      const query = Object.fromEntries(new URLSearchParams(search || ''));
       const body = rawBody ? JSON.parse(rawBody) : undefined;
-      this.requests.push({ method: req.method, path, body, authorization: req.headers.authorization });
+      this.requests.push({ method: req.method, path, query, body, authorization: req.headers.authorization });
       const respond = (status, responseBody, contentType = 'application/json') => {
         res.writeHead(status, { 'content-type': contentType });
         res.end(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
@@ -140,6 +146,10 @@ class FakeGladysServer {
       const route = `${req.method} ${path}`;
       if (req.method === 'POST' && /^\/container\/[^/]+\/(start|stop|restart)$/.test(path)) {
         respond(200, { success: true });
+        return;
+      }
+      if (req.method === 'GET' && path.startsWith('/energy/calendar/')) {
+        respond(200, this.energyCalendarEntries);
         return;
       }
       switch (route) {
@@ -200,6 +210,27 @@ class FakeGladysServer {
           break;
         case 'GET /webhook':
           respond(200, this.webhooks);
+          break;
+        case 'GET /calendar/account':
+          respond(200, this.calendarAccounts);
+          break;
+        case 'GET /calendar':
+          respond(200, query.user === undefined ? this.calendars : this.calendars.filter((c) => c.user === query.user));
+          break;
+        case 'POST /calendar':
+          respond(200, { success: true, created: body.calendars.length, updated: 0 });
+          break;
+        case 'DELETE /calendar':
+          respond(200, { success: true });
+          break;
+        case 'POST /calendar/event':
+          respond(200, { success: true, created: body.events.length, updated: 0, deleted: 0 });
+          break;
+        case 'POST /energy/calendar':
+          respond(200, { success: true, count: body.entries.length, changed_from: '2026-01-12T05:00:00.000Z' });
+          break;
+        case 'GET /energy/contract':
+          respond(200, this.energyContracts);
           break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });

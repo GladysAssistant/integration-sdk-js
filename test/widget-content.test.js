@@ -318,6 +318,206 @@ describe('validateWidgetContent(content) — dev-mode mirror of the core normali
     ]);
   });
 
+  it('should accept the form behind an action button (fields) and ignore an empty list', () => {
+    const issues = validateWidgetContent({
+      components: [
+        {
+          type: 'button',
+          label: { en: 'Pallet delivered', fr: 'Palette livrée' },
+          icon: 'truck',
+          action: {
+            key: 'delivery',
+            fields: [
+              {
+                key: 'bags',
+                type: 'number',
+                required: true,
+                min: 1,
+                max: 200,
+                default: 72,
+                label: { en: 'Bags delivered', fr: 'Sacs livrés' },
+                placeholder: { en: '72' },
+                description: { en: 'Count the bags on the pallet' },
+              },
+              {
+                key: 'price_per_bag',
+                type: 'number',
+                required: true,
+                min: 0,
+                max: 50,
+                default: 7.3,
+                label: { en: 'Price' },
+              },
+              {
+                key: 'quality',
+                type: 'select',
+                label: { en: 'Quality' },
+                display: 'radio',
+                options: [
+                  { value: 'a1', label: { en: 'A1' } },
+                  { value: 'a2', label: { en: 'A2' } },
+                ],
+                default: 'a1',
+              },
+              { key: 'note', type: 'string', label: { en: 'Note' }, placeholder: { en: 'Optional' }, default: '' },
+            ],
+          },
+        },
+        {
+          type: 'button',
+          label: 'Flag',
+          action: { key: 'flag', fields: [{ key: 'urgent', type: 'boolean', label: { en: 'Urgent' }, default: true }] },
+        },
+        { type: 'button', label: 'Plain', action: { key: 'plain', fields: [] } },
+      ],
+    });
+    assert.deepEqual(issues, []);
+  });
+
+  it('should report the texts of the action fields the core truncates', () => {
+    const issues = validateWidgetContent({
+      components: [
+        {
+          type: 'button',
+          label: 'Go',
+          action: {
+            key: 'go',
+            fields: [
+              {
+                key: 'f',
+                type: 'select',
+                label: { en: 'x'.repeat(41) },
+                description: { en: 'd'.repeat(201) },
+                options: [{ value: 'a', label: { en: 'o'.repeat(41) } }],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    assert.deepEqual(issues, [
+      'components[0].action.fields[0].label.en: is 41 characters long, truncated to 40 by Gladys',
+      'components[0].action.fields[0].description.en: is 201 characters long, truncated to 200 by Gladys',
+      'components[0].action.fields[0].options[0].label.en: is 41 characters long, truncated to 40 by Gladys',
+    ]);
+  });
+
+  it('should drop a button whose action fields declaration the core refuses, naming every error', () => {
+    const issues = validateWidgetContent({
+      components: [
+        { type: 'button', label: 'Not a list', action: { key: 'aa', fields: { key: 'x' } } },
+        { type: 'button', label: 'Too many', action: { key: 'bb', fields: [1, 2, 3, 4, 5] } },
+        {
+          type: 'button',
+          label: 'Bad fields',
+          action: {
+            key: 'cc',
+            fields: [
+              { key: 'Bad', type: 'multi_select', label: 'x', source: 'devices' },
+              {
+                key: 'bags',
+                type: 'number',
+                label: { en: 'Bags' },
+                min: 'a',
+                max: 5,
+                placeholder: 'x',
+                required: 'yes',
+                display: 'radio',
+                options: [],
+                default: 'x',
+                extra: 1,
+              },
+              { key: 'bags', type: 'boolean', label: { en: 'B' }, min: 1 },
+              {
+                key: 'sel',
+                type: 'select',
+                label: { en: 'S' },
+                options: [null, { value: '', label: { en: 'x' }, extra: 1 }, { value: 'a', label: 'no' }],
+                default: 'zz',
+              },
+            ],
+          },
+        },
+        {
+          type: 'button',
+          label: 'Bad fields 2',
+          action: {
+            key: 'dd',
+            fields: [
+              'nope',
+              { key: 'n', type: 'number', label: { en: 'N' }, min: 5, max: 1, default: 'x' },
+              {
+                key: 's',
+                type: 'string',
+                label: { en: 'S', zz: 'bad', fr: '' },
+                default: 'x'.repeat(1001),
+                placeholder: { en: 'y'.repeat(50) },
+              },
+              {
+                key: 'd',
+                type: 'select',
+                label: { en: 'D' },
+                display: 'grid',
+                options: [{ value: 'a', label: { en: 'A' } }],
+                default: 'b',
+              },
+            ],
+          },
+        },
+        {
+          type: 'button',
+          label: 'Bad fields 3',
+          action: {
+            key: 'ee',
+            fields: [
+              { key: 'b', type: 'boolean', label: { en: 'B' }, display: 'radio', placeholder: { en: 'x' }, default: 1 },
+              { key: 'o', type: 'select', label: { en: 'O' }, options: 'a,b' },
+              { key: 'n', type: 'number', label: { en: 'N' }, max: 'z', default: true },
+              { key: 'l', label: { en: 'L' }, type: 'string', default: 7, description: 'plain' },
+            ],
+          },
+        },
+      ],
+    });
+    assert.deepEqual(issues, [
+      'components[0].action.fields: must be an array of at most 4 fields',
+      'components[1].action.fields: must be an array of at most 4 fields',
+      'components[2].action.fields[0].source: not allowed in a widget action, list the options in the content',
+      'components[2].action.fields[0].key: must be a non-empty string matching [a-z0-9_]',
+      'components[2].action.fields[0].type: must be one of string, number, boolean, select',
+      'components[2].action.fields[1].extra: unknown field',
+      'components[2].action.fields[1].placeholder: must be a multi-language object with a non-empty "en" value',
+      'components[2].action.fields[1].required: must be a boolean',
+      'components[2].action.fields[1].min: must be a number',
+      'components[2].action.fields[1].display: only allowed on select fields',
+      'components[2].action.fields[1].options: only allowed on select fields',
+      'components[2].action.fields[1].default: must be a number',
+      'components[2].action.fields[2].key: duplicate key "bags"',
+      'components[2].action.fields[2].min: only allowed on number fields',
+      'components[2].action.fields[3].options[0]: must be an object',
+      'components[2].action.fields[3].options[1].extra: unknown field',
+      'components[2].action.fields[3].options[1].value: must be a non-empty string',
+      'components[2].action.fields[3].options[2].label: must be a multi-language object with a non-empty "en" value',
+      'components[2].action.fields[3].default: must be one of the select options',
+      'components[3].action.fields[0]: must be an object',
+      'components[3].action.fields[1].min: must be lower than or equal to max',
+      'components[3].action.fields[1].default: must be a number',
+      'components[3].action.fields[2].label.fr: must be a language code with a non-empty string value',
+      'components[3].action.fields[2].placeholder.en: is 50 characters long, truncated to 40 by Gladys',
+      'components[3].action.fields[2].default: must be at most 1000 characters',
+      'components[3].action.fields[3].display: must be one of dropdown, radio',
+      'components[3].action.fields[3].default: must be one of the select options',
+      'components[4].action.fields[0].placeholder: only allowed on string, number fields',
+      'components[4].action.fields[0].display: only allowed on select fields',
+      'components[4].action.fields[0].default: must be a boolean',
+      'components[4].action.fields[1].options: select fields must have a non-empty options list',
+      'components[4].action.fields[2].max: must be a number',
+      'components[4].action.fields[2].default: must be a number',
+      'components[4].action.fields[3].description: must be a multi-language object with a non-empty "en" value',
+      'components[4].action.fields[3].default: must be a string',
+    ]);
+  });
+
   it('should apply the content budget in content order: 8 components, 1 focal, 6 tiles, 2 texts, 1 status, 4 buttons', () => {
     const nine = validateWidgetContent({ components: [...Array.from({ length: 8 }, () => tile()), status()] });
     assert.deepEqual(

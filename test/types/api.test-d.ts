@@ -4,7 +4,24 @@
  */
 import {
   ActionFields,
+  CalendarAccount,
+  CalendarEventInput,
+  CalendarInput,
+  CalendarWindow,
   ContainerPort,
+  EnergyCalendarEntry,
+  EnergyCalendarEntryInput,
+  EnergyContract,
+  EnergyCurrentPrice,
+  EnergyCurrentRequest,
+  EnergyIntervalCost,
+  EnergyPriceRequest,
+  IntegrationCalendar,
+  PublishCalendarEventsResponse,
+  PublishCalendarsResponse,
+  PublishEnergyCalendarResponse,
+  WidgetActionField,
+  WidgetActionValues,
   ContainerPortProtocol,
   createLogger,
   Device,
@@ -67,6 +84,7 @@ import {
   WidgetActionResult,
   WidgetChartComponent,
   WidgetColor,
+  WidgetButtonComponent,
   WidgetComponent,
   WidgetContent,
   WidgetGetOptions,
@@ -366,6 +384,115 @@ const main = async (): Promise<void> => {
   gladys.onWidgetAction('solar', async () => 'Refreshed');
   gladys.onWidgetAction('silent', async () => {});
   gladys.requestWidgetRefresh('vacuum');
+
+  // A button opening a form (action fields): the typed values reach the handler.
+  const bagsField: WidgetActionField = {
+    key: 'bags',
+    type: 'number',
+    required: true,
+    min: 1,
+    max: 200,
+    default: 72,
+    label: { en: 'Bags delivered', fr: 'Sacs livrés' },
+  };
+  const qualityField: WidgetActionField = {
+    key: 'quality',
+    type: 'select',
+    label: { en: 'Quality' },
+    display: 'radio',
+    options: [{ value: 'a1', label: { en: 'A1' } }],
+    default: 'a1',
+  };
+  const deliveryButton: WidgetButtonComponent = {
+    type: 'button',
+    label: { en: 'Pallet delivered' },
+    action: { key: 'delivery', fields: [bagsField, qualityField] },
+  };
+  gladys.onWidgetAction('pellets', async (actionKey: string, params, options) => {
+    const values: WidgetActionValues | undefined = options.values;
+    return values === undefined ? undefined : { en: `${actionKey}: ${String(values.bags)} bags` };
+  });
+  void deliveryButton;
+
+  // Calendar integrations (manifest type "calendar").
+  const accounts: CalendarAccount[] = await gladys.getCalendarAccounts();
+  const accountLanguage: string = accounts[0].user.language;
+  const calendars: IntegrationCalendar[] = await gladys.getCalendars();
+  const johnCalendars: IntegrationCalendar[] = await gladys.getCalendars('john');
+  const skip: boolean = johnCalendars[0].sync === false;
+  const calendarInput: CalendarInput = {
+    external_id: gladys.externalId('john:primary'),
+    name: 'Personal',
+    description: null,
+    color: '#3174ad',
+  };
+  const published: PublishCalendarsResponse = await gladys.publishCalendars('john', [calendarInput]);
+  const createdCalendars: number = published.created;
+  await gladys.deleteCalendar(gladys.externalId('john:old'));
+  const timedEvent: CalendarEventInput = {
+    external_id: gladys.externalId('john:8f3a@google.com'),
+    name: 'Dentist',
+    start: new Date('2026-08-14T09:00:00.000Z'),
+    end: '2026-08-14T09:30:00.000Z',
+    location: '12 rue des Lilas',
+    url: 'https://calendar.google.com/event?eid=abc',
+  };
+  const fullDayEvent: CalendarEventInput = {
+    external_id: gladys.externalId('john:holiday-20260815'),
+    name: 'Assomption',
+    start: '2026-08-15',
+    end: '2026-08-16',
+    full_day: true,
+    description: null,
+  };
+  const window: CalendarWindow = { from: '2026-08-01T00:00:00.000Z', to: new Date('2026-09-01T00:00:00.000Z') };
+  const events: PublishCalendarEventsResponse = await gladys.publishCalendarEvents(
+    calendarInput.external_id,
+    [timedEvent, fullDayEvent],
+    window,
+  );
+  const pruned: number = events.deleted;
+  await gladys.publishCalendarEvents(calendarInput.external_id, []);
+  gladys.onCalendarAccountUpdated(async (userSelector: string) => {
+    await gladys.getCalendars(userSelector);
+  });
+  const calendarType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.CALENDAR_ACCOUNT_UPDATED;
+  void [accountLanguage, calendars, skip, createdCalendars, pruned, calendarType];
+
+  // Energy contracts capability (manifest energy_contracts).
+  const dayEntry: EnergyCalendarEntryInput = { date: '2026-01-12', value: 'critical-peak' };
+  const priceEntry: EnergyCalendarEntryInput = { starts_at: new Date(), price: 0.1823, currency: 'GBP' };
+  const energyPublished: PublishEnergyCalendarResponse = await gladys.publishEnergyCalendar('spot-gb-a', [
+    dayEntry,
+    priceEntry,
+  ]);
+  const changedFrom: string | null = energyPublished.changed_from;
+  const calendarEntries: EnergyCalendarEntry[] = await gladys.getEnergyCalendar('spot-gb-a', {
+    from: '2026-01-01',
+    to: new Date(),
+    limit: 48,
+  });
+  const entryValue: string | number = calendarEntries[0].value;
+  const contracts: EnergyContract[] = await gladys.getEnergyContracts();
+  const delegated: boolean = contracts[0].pricing_mode === 'delegated';
+  gladys.onEnergyPrice(async (request: EnergyPriceRequest): Promise<EnergyIntervalCost[]> => {
+    const region: unknown = request.contract.inputs.region;
+    const before: number = request.cumulative_before.billing_period;
+    void [region, before];
+    return request.intervals.map(({ starts_at, kwh }) => ({
+      starts_at,
+      cost: kwh * 0.18,
+      components: { energy: kwh * 0.18 },
+    }));
+  });
+  gladys.onEnergyCurrent(async (request: EnergyCurrentRequest): Promise<EnergyCurrentPrice> => {
+    const peak: number = request.max_power_kw;
+    void peak;
+    return { price: 0.18, valid_until: new Date(), next_price: null, label: 'Off-peak' };
+  });
+  gladys.requestEnergyRecalculation();
+  const energyPriceType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.ENERGY_CONTRACT_PRICE;
+  void [changedFrom, entryValue, delegated, energyPriceType];
   const contentIssues: string[] = validateWidgetContent({ components: [] });
   const imageIssues: string[] = validateWidgetImage('iVBORw0KGgo=');
   const widgetType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.WIDGET_GET;
