@@ -297,9 +297,11 @@ export interface SsdpScanResult {
 }
 
 /**
- * Values of the `fields` mini-form of a manifest action (contract C.1).
- * `section` fields (presentational intro blocks) store no value and never
- * appear here.
+ * Values of the `fields` mini-form of a manifest action (contract C.1),
+ * validated by the core, the declared `default` of every field the user left
+ * empty applied. A `source: "devices"` select carries the chosen device
+ * external_id, a `source: "houses"` one the chosen house selector. `section`
+ * fields (presentational intro blocks) store no value and never appear here.
  */
 export type ActionFields = Record<string, unknown>;
 
@@ -638,6 +640,280 @@ export interface House {
   longitude: number | null;
 }
 
+/** A date argument of the SDK: an ISO 8601 string (a `YYYY-MM-DD` date included) or a Date. */
+export type DateInput = string | Date;
+
+/**
+ * One user who enabled a calendar integration (manifest `type: "calendar"`,
+ * contract capabilities/calendar-type.md), as returned by getCalendarAccounts():
+ * who to sync, with their `account_schema` values (secrets included).
+ */
+export interface CalendarAccount {
+  user: LinkedUser;
+  /** The user's `account_schema` values, keyed by field key; `{}` without a schema. */
+  config: Record<string, unknown>;
+}
+
+/**
+ * A calendar pushed by the integration, as returned by getCalendars(). `sync`
+ * and `shared` are user-owned: `sync: false` means "skip this calendar" (its
+ * events were emptied, further pushes are a 403), `shared` whether the
+ * household — and the scenes — see it.
+ */
+export interface IntegrationCalendar {
+  /** Selector of the owning user. */
+  user: string;
+  /** User-scoped external id: `ext:<selector>:<user_selector>:<id>`. */
+  external_id: string;
+  selector: string;
+  name: string;
+  description: string;
+  /** `#rrggbb`. */
+  color: string;
+  sync: boolean;
+  shared: boolean;
+}
+
+/** One calendar of the publishCalendars batch (contract capabilities/calendar-type.md). */
+export interface CalendarInput {
+  /**
+   * User-scoped external id, `ext:<selector>:<user_selector>:<provider id>`
+   * (≤ 255 characters) — `gladys.externalId(`${userSelector}:<provider id>`)`.
+   */
+  external_id: string;
+  /** 1-100 characters; integration-owned, overwritten on every push. */
+  name: string;
+  /** ≤ 500 characters; `null` means absent (the stored value is kept). */
+  description?: string | null;
+  /**
+   * `#rrggbb`, lowercased by the core; an invalid color is dropped (the
+   * stored value kept, the default `#3174ad` applied on creation).
+   */
+  color?: string | null;
+}
+
+/** Response of POST /calendar. */
+export interface PublishCalendarsResponse extends SuccessResponse {
+  created: number;
+  updated: number;
+}
+
+/** One event of the publishCalendarEvents batch (contract capabilities/calendar-type.md). */
+export interface CalendarEventInput {
+  /**
+   * User-scoped external id, `ext:<selector>:<user_selector>:<provider UID>`
+   * (≤ 255 characters) — a stable per-user identity independent of the
+   * calendar: republished under another calendar of the user, the event is
+   * moved. An expanded recurrence takes the UID plus the occurrence date.
+   */
+  external_id: string;
+  /** 1-200 characters. */
+  name: string;
+  /**
+   * Start of the event. On a `full_day` event, the calendar date as written
+   * by the provider (`'2026-08-15'`, or the date part of an ISO datetime
+   * whatever its offset).
+   */
+  start: DateInput;
+  /**
+   * End of the event, ≥ `start`; absent on a timed event → zero duration,
+   * absent on a `full_day` event → the start day. On a `full_day` event, an
+   * EXCLUSIVE calendar date (the iCalendar DTEND convention).
+   */
+  end?: DateInput | null;
+  /** Interpreted by calendar date, stored at the midnights of the instance timezone. Default false. */
+  full_day?: boolean;
+  /** ≤ 500 characters. */
+  location?: string | null;
+  /** ≤ 1000 characters. */
+  description?: string | null;
+  /** http(s), ≤ 500 characters. */
+  url?: string | null;
+}
+
+/**
+ * Prune window of publishCalendarEvents: the integration's events overlapping
+ * it (`start < to` and either `end > from` — exclusive end — or
+ * `start >= from`) and absent from the pushed list are deleted. One window,
+ * one request: a larger range is split into disjoint sub-windows.
+ */
+export interface CalendarWindow {
+  from: DateInput;
+  to: DateInput;
+}
+
+/** Response of POST /calendar/event. */
+export interface PublishCalendarEventsResponse extends SuccessResponse {
+  created: number;
+  updated: number;
+  /** Events pruned by the window (0 without a window). */
+  deleted: number;
+}
+
+/**
+ * One entry of the publishEnergyCalendar batch (contract
+ * capabilities/energy-contracts.md, section 2): exactly one of `starts_at` or
+ * `date`, exactly one of `value` or `price`.
+ */
+export interface EnergyCalendarEntryInput {
+  /**
+   * Start of the period the value covers, aligned on the calendar granularity:
+   * a local midnight of the calendar timezone (daily), a 30- or 15-minute slot
+   * of its local clock. From 5 years back to 7 days ahead.
+   */
+  starts_at?: DateInput | null;
+  /** Daily calendars only: the local date (`YYYY-MM-DD`) in the calendar timezone. */
+  date?: string | null;
+  /** A string within the declared `values` enum (1-64 characters) — a colour, `holiday`, `critical-peak`… */
+  value?: string | null;
+  /** A price per kWh on a price calendar (no `values` declared); may be negative (a credit). */
+  price?: number | null;
+  /** ISO 4217 code, must match the declared `currency` when given. */
+  currency?: string | null;
+}
+
+/** One entry of a tariff calendar, as returned by getEnergyCalendar(). */
+export interface EnergyCalendarEntry {
+  /** ISO date. */
+  starts_at: string;
+  /** The string value, or the price per kWh. */
+  value: string | number;
+}
+
+/** Options of getEnergyCalendar. */
+export interface EnergyCalendarReadOptions {
+  /** Start of the window (inclusive). */
+  from?: DateInput;
+  /** End of the window (inclusive). */
+  to?: DateInput;
+  /** Maximum number of entries — the last ones when no window is given. */
+  limit?: number;
+}
+
+/** Response of POST /energy/calendar. */
+export interface PublishEnergyCalendarResponse extends SuccessResponse {
+  /** Number of entries written. */
+  count: number;
+  /** Earliest instant whose value changed (ISO), null when none did. */
+  changed_from: string | null;
+}
+
+/** Pricing mode of an energy contract template: the core rule engine, or the integration (onEnergyPrice). */
+export type EnergyPricingMode = 'rules' | 'delegated';
+
+/**
+ * Status of an energy contract: `orphaned` is a delegated contract whose
+ * provider integration was uninstalled (nobody can price it anymore).
+ */
+export type EnergyContractStatus = 'active' | 'scheduled' | 'expired' | 'orphaned';
+
+/**
+ * A user's energy contract referencing a template of the integration, as
+ * returned by getEnergyContracts() — never the meter nor the consumption.
+ */
+export interface EnergyContract {
+  id: string;
+  /** Key of the template of the manifest `energy_contracts.templates`. */
+  template_key: string;
+  /** `version` of the template at import; a newer one never changes the contract silently. */
+  template_version: string | null;
+  pricing_mode: EnergyPricingMode;
+  /** Values of the template `inputs`, keyed by input key. */
+  inputs: Record<string, unknown>;
+  /** Inclusive, `YYYY-MM-DD` in the contract timezone. */
+  valid_from: string;
+  /** Inclusive, null = ongoing. */
+  valid_to: string | null;
+  /** IANA timezone of the contract. */
+  timezone: string;
+  /** ISO 4217 code. */
+  currency: string;
+  /** 1-31. */
+  billing_period_start_day: number;
+  status: EnergyContractStatus;
+}
+
+/** The contract fields sent with a delegated pricing request (never the meter). */
+export interface EnergyContractRef {
+  id: string;
+  template_key: string;
+  inputs: Record<string, unknown>;
+  currency: string;
+  timezone: string;
+  billing_period_start_day: number;
+}
+
+/** Bounds of the billing period a delegated request covers (ISO dates). */
+export interface EnergyBillingPeriod {
+  starts_at: string;
+  ends_at: string;
+}
+
+/** kWh of the priced feature accumulated per scope (since the start of the day, the month, the billing period). */
+export interface EnergyCumulative {
+  day: number;
+  month: number;
+  billing_period: number;
+}
+
+/** One half-hour consumption interval to price. */
+export interface EnergyInterval {
+  /** ISO date, start of the interval. */
+  starts_at: string;
+  kwh: number;
+  /** Peak power over the interval (derived from the kWh when no power feature is historized). */
+  max_power_kw: number;
+}
+
+/**
+ * What Gladys sends with an energy-contract.price command (contract
+ * capabilities/energy-contracts.md, section 3): the intervals of ONE billing
+ * period (≤ 1,488, 31 days — a longer period comes in several requests, each
+ * with the accumulations before its own first interval).
+ */
+export interface EnergyPriceRequest {
+  contract: EnergyContractRef;
+  billing_period: EnergyBillingPeriod;
+  /** Accumulations before the first interval, since the period start (or the contract `valid_from` when later). */
+  cumulative_before: EnergyCumulative;
+  intervals: EnergyInterval[];
+}
+
+/** The cost of one requested interval, resolved by onEnergyPrice. */
+export interface EnergyIntervalCost {
+  /** The `starts_at` of the requested interval. */
+  starts_at: DateInput;
+  /** Finite, ≥ 0, in the contract currency: the energy only (the `fixed` components are the core's). */
+  cost: number;
+  /** Optional breakdown (`{ energy, tax }`, keys `[a-z0-9_-]{1,32}`); the whole cost goes to `energy` otherwise. */
+  components?: Record<string, number>;
+  /** Short name of the period the interval was priced in (≤ 64 characters). */
+  label?: string;
+}
+
+/** What Gladys sends with an energy-contract.current command: the same state at the current instant. */
+export interface EnergyCurrentRequest {
+  contract: EnergyContractRef;
+  billing_period: EnergyBillingPeriod;
+  cumulative: EnergyCumulative;
+  /** Peak power of the last interval. */
+  max_power_kw: number;
+}
+
+/** The current price resolved by onEnergyCurrent (the core adds `unit: "kWh"`). */
+export interface EnergyCurrentPrice {
+  /** Current price per kWh in the contract currency, null when unknown. */
+  price: number | null;
+  /** When the price changes, null when unknown. */
+  valid_until?: DateInput | null;
+  /** The price from `valid_until` on, null when unknown. */
+  next_price?: number | null;
+  /** Short name of the current period (≤ 64 characters), e.g. 'Off-peak'. */
+  label?: string;
+  /** Short name of the next period. */
+  next_label?: string;
+}
+
 /**
  * Flat details of a scene event (contract "scene triggers and actions"):
  * at most 30 keys, one primitive per key — a string of at most 1000
@@ -650,8 +926,8 @@ export type SceneEventData = Record<string, string | number | boolean | null>;
  * Resolved values of a scene action's `fields` (contract "scene triggers and
  * actions"): scene variables substituted, defaults applied, validated by the
  * core against the declaration. A `source: "devices"` field carries the
- * chosen device external_id. `section` fields store no value and never
- * appear here.
+ * chosen device external_id, a `source: "houses"` field the chosen house
+ * selector. `section` fields store no value and never appear here.
  */
 export type SceneActionFields = Record<string, unknown>;
 
@@ -837,17 +1113,79 @@ export interface WidgetImageComponent {
   fit?: WidgetImageFit;
 }
 
+/** Type of a field of the form behind a widget action button: the `config_schema` grammar, restricted. */
+export type WidgetActionFieldType = 'string' | 'number' | 'boolean' | 'select';
+
+/** One option of a `select` action field. */
+export interface WidgetActionFieldOption {
+  /** Non-empty string, the stored value. */
+  value: string;
+  /** Multi-language (`en` required), ≤ 40 characters. */
+  label: MultiLanguageMessage;
+}
+
+/**
+ * One field of the form a widget action button opens (contract "dashboard
+ * widgets", section 7): the `config_schema` grammar (C.1), restricted to
+ * `string` | `number` | `boolean` | `select` — no `section`, no
+ * `multi_select`, no `secret`/`oauth2`/`account_link` (a dashboard is readable
+ * by every user) and no `source` (the content is produced at runtime: list
+ * the options yourself). The declaration is validated with the manifest's own
+ * field validator; an invalid one drops the button.
+ */
+export interface WidgetActionField {
+  /** `^[a-z0-9_]+$`, unique within the action. */
+  key: string;
+  type: WidgetActionFieldType;
+  /** Multi-language (`en` required), ≤ 40 characters. */
+  label: MultiLanguageMessage;
+  /** Multi-language, ≤ 200 characters. */
+  description?: MultiLanguageMessage;
+  /** `string` and `number` fields only; multi-language, ≤ 40 characters. */
+  placeholder?: MultiLanguageMessage;
+  required?: boolean;
+  /**
+   * Pre-fills the form (the last price paid…) and is relayed as the value of
+   * a field the user left empty; a `string` default is bounded like a typed
+   * value (≤ 1000 characters), a `select` default is one of the options.
+   */
+  default?: string | number | boolean;
+  /** `number` fields only. */
+  min?: number;
+  /** `number` fields only. */
+  max?: number;
+  /** `select` fields only: a non-empty list. */
+  options?: WidgetActionFieldOption[];
+  /** `select` fields only. */
+  display?: 'dropdown' | 'radio';
+}
+
 /**
  * A widget action bound to a `button`: relayed to onWidgetAction with the
- * declared `params` (≤ 1 KB, never user input). `confirm: true` makes the
- * frontend ask before sending.
+ * declared `params` (≤ 1 KB, never user input) and, when the action declares
+ * `fields`, the `values` the user typed in the form opened by the tap,
+ * validated by the core against that declaration. `confirm: true` makes the
+ * frontend ask before sending (ignored on a button with `fields`: the form is
+ * the confirmation).
  */
 export interface WidgetButtonAction {
   /** `^[a-z0-9_]{2,32}$`, unique within the content. */
   key: string;
   params?: Record<string, unknown>;
   confirm?: boolean;
+  /** At most 4 fields; an empty list is no form at all. */
+  fields?: WidgetActionField[];
 }
+
+/**
+ * Values typed in the form of a widget action declaring `fields` (contract
+ * "dashboard widgets", section 7): validated by the core against the fields
+ * of the action found in the content (unknown key, invalid value, string over
+ * 1000 characters or missing required field → refused before any relay),
+ * the declared `default` of every absent field applied. A user EVENT (a
+ * delivery happened, at this price), never a write to the configuration.
+ */
+export type WidgetActionValues = Record<string, unknown>;
 
 /**
  * `button` component (label ≤ 24): a pill carrying exactly one of `action`
@@ -898,7 +1236,8 @@ export interface WidgetContent {
 /**
  * Instance settings of a widget (the declared `settings` of the manifest,
  * defaults applied, validated by the core). A `source: "devices"` setting
- * carries the chosen device external_id.
+ * carries the chosen device external_id, a `source: "houses"` setting the
+ * chosen house selector.
  */
 export type WidgetSettings = Record<string, unknown>;
 
@@ -1381,8 +1720,15 @@ export declare const DEVICE_FEATURE_TYPES: {
   };
   readonly THERMOSTAT: {
     readonly TARGET_TEMPERATURE: 'target-temperature';
+    /** What the machine does (THERMOSTAT_MODE: off, heating, cooling…), a command. */
     readonly MODE: 'mode';
     readonly OPERATING_STATE: 'operating-state';
+    /**
+     * Which temperature to aim for (THERMOSTAT_PRESET: schedule, frost, away,
+     * eco, night, comfort), a command — the preset_mode / system_mode split
+     * of Home Assistant and Zigbee TRVs, composing with `mode`. No unit.
+     */
+    readonly PRESET: 'preset';
   };
   readonly AIRQUALITY_SENSOR: {
     readonly AQI: 'aqi';
@@ -1636,11 +1982,15 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
     WEBHOOK_UPDATED: string;
+    CALENDAR_ACCOUNT_UPDATED: string;
     SCENE_ACTION_RUN: string;
     WIDGET_GET: string;
     WIDGET_GET_IMAGE: string;
     WIDGET_ACTION: string;
     WIDGET_REFRESH: string;
+    ENERGY_CONTRACT_PRICE: string;
+    ENERGY_CONTRACT_CURRENT: string;
+    ENERGY_CALENDAR_REFRESH: string;
     HEARTBEAT: string;
   };
 };
@@ -1938,6 +2288,84 @@ export declare class GladysIntegration extends EventEmitter {
   getContacts(): Promise<LinkedContact[]>;
 
   /**
+   * Fetch the users who ENABLED a calendar integration (manifest
+   * `type: "calendar"`), with their `account_schema` values (secrets
+   * included) — who to sync. Read it on every (re)connection and on
+   * `onCalendarAccountUpdated`. Any other type is a 403.
+   */
+  getCalendarAccounts(): Promise<CalendarAccount[]>;
+
+  /**
+   * Fetch the calendars the integration pushed, with the user-owned `sync`
+   * flag telling which to skip — every enabled user's when `userSelector` is
+   * omitted (the startup resync).
+   */
+  getCalendars(userSelector?: string): Promise<IntegrationCalendar[]>;
+
+  /**
+   * Publish (upsert by `external_id`) the calendars of ONE enabled user: the
+   * integration syncs, the core stores. External ids are user-scoped
+   * (`ext:<selector>:<user_selector>:<id>`). `name`, `description` and
+   * `color` are integration-owned (overwritten on every push); `sync`,
+   * `shared` and `selector` are user-owned (never touched): a pushed calendar
+   * starts private. ≤ 50 calendars per user (400), unknown or not-enabled
+   * user → 404, 30 calendar writes per minute per integration (429).
+   * Validated SDK-side before any request.
+   */
+  publishCalendars(userSelector: string, calendars: CalendarInput[]): Promise<PublishCalendarsResponse>;
+
+  /**
+   * Destroy one of the integration's calendars and its events (a
+   * provider-side deletion); another integration's or an unknown one → 404.
+   */
+  deleteCalendar(externalId: string): Promise<SuccessResponse>;
+
+  /**
+   * Publish (upsert by `external_id`, ≤ 500 per call) a batch of events in
+   * one of the integration's calendars; with `window` (`{ from, to }`), the
+   * integration's events overlapping the window and absent from the list
+   * are pruned (events created by hand in Gladys never are) — a
+   * provider-side deletion propagates by republishing the window. One
+   * window, one request: a larger range is split into disjoint sub-windows.
+   * A `full_day` event is interpreted by calendar date, `end` exclusive;
+   * recurrences are expanded by the integration (≤ 10 000 events per
+   * calendar). Calendar of a disabled user → 404, `sync: false` → 403.
+   * Validated SDK-side before any request.
+   */
+  publishCalendarEvents(
+    calendarExternalId: string,
+    events: CalendarEventInput[],
+    window?: CalendarWindow,
+  ): Promise<PublishCalendarEventsResponse>;
+
+  /**
+   * Publish (upsert by `starts_at`) the entries of a tariff calendar declared
+   * in the manifest `energy_contracts.calendars` — day colours, holidays,
+   * critical peak days (a `value` within the declared enum) or spot prices
+   * per kWh (a `price`). Each entry carries `starts_at` (aligned on the
+   * calendar granularity) or, on a daily calendar, `date` (`YYYY-MM-DD`);
+   * ≤ 2,000 entries per call, 5 years back to 7 days ahead. An undeclared or
+   * foreign key → 403. A changed value queues a bounded cost recalculation
+   * core-side. Validated SDK-side before any request.
+   */
+  publishEnergyCalendar(key: string, entries: EnergyCalendarEntryInput[]): Promise<PublishEnergyCalendarResponse>;
+
+  /**
+   * Read back the entries of a tariff calendar the integration declares and
+   * owns (resume after a restart): oldest first over `from`/`to`, the
+   * `limit` last ones without a window. A key owned by another integration
+   * → 403.
+   */
+  getEnergyCalendar(key: string, options?: EnergyCalendarReadOptions): Promise<EnergyCalendarEntry[]>;
+
+  /**
+   * Fetch the users' energy contracts referencing a template of this
+   * integration — identity, inputs, validity, timezone, currency, billing
+   * period, status — never the meter nor the consumption.
+   */
+  getEnergyContracts(): Promise<EnergyContract[]>;
+
+  /**
    * Fetch the Gladys Plus webhook state (contract B.17): whether the relay is
    * available, and the ready-to-register public URL of each webhook declared
    * in the manifest. The Netatmo pattern: (re)register the URLs at the third
@@ -1952,7 +2380,9 @@ export declare class GladysIntegration extends EventEmitter {
   /**
    * Save configuration values (partial merge). Keys of `section` fields
    * (presentational intro blocks, no stored value) are rejected by the host
-   * API.
+   * API. Unless the manifest declares `location: true`, a `source: "houses"`
+   * field only takes its stored value back unchanged (any other value is a
+   * 403): the house is the user's choice.
    */
   setConfig(partialConfig: IntegrationConfig): Promise<SuccessResponse>;
 
@@ -2134,6 +2564,16 @@ export declare class GladysIntegration extends EventEmitter {
   requestWeatherRefresh(): void;
 
   /**
+   * Handler called when a user of a calendar integration enabled or disabled
+   * it from the "My calendars" block, changed their account values or toggled
+   * the `sync`/`shared` flag of a calendar (no ack). Receives the user
+   * selector, after the core applied the change: re-read
+   * `getCalendarAccounts()` / `getCalendars(userSelector)` and adjust the
+   * sync loops. Lost while disconnected: re-read both on every connection.
+   */
+  onCalendarAccountUpdated(callback: (userSelector: string) => void | Promise<void>): void;
+
+  /**
    * Handler of ONE webhook declared in the manifest `webhooks` field
    * (contract B.17): third-party events pushed from the Internet, relayed by
    * Gladys Plus. Registered per webhook `key`. In `fire_and_forget` mode the
@@ -2160,7 +2600,8 @@ export declare class GladysIntegration extends EventEmitter {
    * Handler of ONE action declared in the manifest `actions` field, run when
    * the user clicks its button in the Configuration screen (auto-acked).
    * Registered per action `key`; receives the values of the action `fields`
-   * mini-form. The resolved value (string or multi-language object) is acked
+   * mini-form, validated by the core, the declared `default` of every field
+   * left empty applied. The resolved value (string or multi-language object) is acked
    * back as `data.message` and shown under the button. The ack is awaited
    * under the action's declared `timeout_seconds` (not the standard 5 s).
    */
@@ -2218,7 +2659,9 @@ export declare class GladysIntegration extends EventEmitter {
    * the user tapped a button declared with an `action` in the content.
    * Registered per widget `key`; receives the tapped `actionKey`, the
    * `params` declared in the last normalized content (never user input) and
-   * `{ settings }`. Resolve an optional toast message (string,
+   * `{ settings, values }` — `values` the form of a button declaring
+   * `fields`, validated by the core and defaults applied, ABSENT for an
+   * action without `fields`. Resolve an optional toast message (string,
    * multi-language object or `{ message }`, ≤ 200 characters per language)
    * or `undefined`. After a successful action the core drops the cached
    * content and every open instance refetches. Awaited under the widget's
@@ -2229,7 +2672,7 @@ export declare class GladysIntegration extends EventEmitter {
     callback: (
       actionKey: string,
       params: Record<string, unknown>,
-      options: { settings: WidgetSettings },
+      options: { settings: WidgetSettings; values?: WidgetActionValues },
     ) => WidgetActionResult | void | Promise<WidgetActionResult | void>,
   ): void;
 
@@ -2244,6 +2687,40 @@ export declare class GladysIntegration extends EventEmitter {
    * when `key` is not a declarable widget key (`^[a-z0-9_]{2,32}$`).
    */
   requestWidgetRefresh(key: string): void;
+
+  /**
+   * Handler of the delegated pricing of the energy contracts capability
+   * (a manifest template with `pricing_mode: "delegated"`, auto-acked): the
+   * core sends the half-hour consumption intervals of ONE billing period
+   * (≤ 1,488) with the contract, the period bounds and the accumulations
+   * before the first interval; resolve ONE cost per requested interval, in
+   * the contract currency (the energy only — the `fixed` components are the
+   * core's), acked back as `data.costs` and awaited under 30 s. A retry
+   * carries the same state as a first request, so the answer must be
+   * deterministic. An invalid payload or a throw fails like a timeout: the
+   * intervals get no new cost and the job retries.
+   */
+  onEnergyPrice(callback: (request: EnergyPriceRequest) => EnergyIntervalCost[] | Promise<EnergyIntervalCost[]>): void;
+
+  /**
+   * Handler of the current price of a delegated energy contract
+   * (auto-acked): the same state at the current instant; resolve
+   * `{ price, valid_until?, next_price?, label?, next_label? }` — acked back
+   * as `data`, awaited under 5 s — for the dashboard price widget and the
+   * "current price" scene condition.
+   */
+  onEnergyCurrent(callback: (request: EnergyCurrentRequest) => EnergyCurrentPrice | Promise<EnergyCurrentPrice>): void;
+
+  /**
+   * Send an energy calendar freshness nudge ("trigger, not data"): the core
+   * recomputes the recent costs (48 hours) of the meters whose contract reads
+   * a calendar the integration declares. Carries no data, expects no answer;
+   * rate-limited core-side to 1 per minute per integration, ignored from an
+   * integration declaring no calendar, dropped silently while disconnected.
+   * `publishEnergyCalendar` already queues a recalculation from the earliest
+   * changed entry: this is for the cases it does not cover.
+   */
+  requestEnergyRecalculation(): void;
 
   on(event: 'connected' | 'disconnected', listener: () => void): this;
   once(event: 'connected' | 'disconnected', listener: () => void): this;

@@ -227,6 +227,32 @@ describe('dashboard widgets declared by the manifest', () => {
       assert.deepEqual(received, [['start', { mode: 'full' }, { settings: { vacuum: 'ext:ext-demo:vacuum' } }]]);
     });
 
+    it('should relay the validated form values of a button declaring fields, next to the settings', async () => {
+      const received = [];
+      gladys.onWidgetAction('pellets', async (actionKey, params, options) => {
+        received.push([actionKey, params, options]);
+        return { en: `${options.values.bags} bags added` };
+      });
+      await gladys.connect();
+      server.send(EXTERNAL_INTEGRATION.WIDGET_ACTION, {
+        message_id: 'wa-values',
+        key: 'pellets',
+        action_key: 'delivery',
+        params: {},
+        settings: { silo: 'ext:ext-demo:silo' },
+        values: { bags: 72, price_per_bag: 7.3 },
+      });
+      const result = await server.waitForWsMessage(EXTERNAL_INTEGRATION.COMMAND_RESULT);
+      assert.deepEqual(result.payload, {
+        message_id: 'wa-values',
+        success: true,
+        data: { message: { en: '72 bags added' } },
+      });
+      assert.deepEqual(received, [
+        ['delivery', {}, { settings: { silo: 'ext:ext-demo:silo' }, values: { bags: 72, price_per_bag: 7.3 } }],
+      ]);
+    });
+
     it('should ack a multi-language object as the message', async () => {
       gladys.onWidgetAction('vacuum', async () => ({ en: 'Cleaning started', fr: 'Nettoyage lancé' }));
       await gladys.connect();

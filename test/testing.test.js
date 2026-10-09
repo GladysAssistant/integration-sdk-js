@@ -296,6 +296,277 @@ describe('createFakeGladys(options?)', () => {
       assert.equal(typeof contacts[0].linked_at, 'string');
     });
 
+    it('should serve the calendar accounts and calendars, and filter the calendars by user', async () => {
+      const account = { user: { selector: 'john', first_name: 'John', language: 'en' }, config: { url: 'x' } };
+      const calendars = [
+        {
+          user: 'john',
+          external_id: 'ext:test-integration:john:a',
+          selector: 'a',
+          name: 'A',
+          description: '',
+          color: '#3174ad',
+          sync: true,
+          shared: false,
+        },
+        {
+          user: 'jane',
+          external_id: 'ext:test-integration:jane:b',
+          selector: 'b',
+          name: 'B',
+          description: '',
+          color: '#3174ad',
+          sync: false,
+          shared: true,
+        },
+      ];
+      const gladys = createFakeGladys({ calendarAccounts: [account], calendars });
+      assert.deepEqual(await gladys.getCalendarAccounts(), [account]);
+      assert.deepEqual(await gladys.getCalendars(), calendars);
+      assert.deepEqual(await gladys.getCalendars('jane'), [calendars[1]]);
+      assert.deepEqual(gladys.fake.requests[2], {
+        method: 'GET',
+        path: '/calendar',
+        body: undefined,
+        query: { user: 'jane' },
+        status: 200,
+      });
+      assert.deepEqual(await createFakeGladys().getCalendarAccounts(), []);
+    });
+
+    it('should upsert the published calendars of an enabled user like Gladys, and refuse the others', async () => {
+      const gladys = createFakeGladys({
+        calendarAccounts: [{ user: { selector: 'john', first_name: 'John', language: 'en' }, config: {} }],
+      });
+      const primary = gladys.externalId('john:primary');
+      assert.deepEqual(
+        await gladys.publishCalendars('john', [
+          { external_id: primary, name: 'Personal' },
+          { external_id: gladys.externalId('john:family'), name: 'Personal', description: 'Shared', color: '#FF0000' },
+          { external_id: gladys.externalId('john:emoji'), name: '📅' },
+        ]),
+        { success: true, created: 3, updated: 0 },
+      );
+      assert.deepEqual(await gladys.getCalendars('john'), [
+        {
+          user: 'john',
+          external_id: primary,
+          selector: 'personal',
+          name: 'Personal',
+          description: '',
+          color: '#3174ad',
+          sync: true,
+          shared: false,
+        },
+        {
+          user: 'john',
+          external_id: 'ext:test-integration:john:family',
+          selector: 'personal-2',
+          name: 'Personal',
+          description: 'Shared',
+          color: '#ff0000',
+          sync: true,
+          shared: false,
+        },
+        {
+          user: 'john',
+          external_id: 'ext:test-integration:john:emoji',
+          selector: 'calendar',
+          name: '📅',
+          description: '',
+          color: '#3174ad',
+          sync: true,
+          shared: false,
+        },
+      ]);
+      // A republication overwrites the integration-owned fields only.
+      gladys.fake.calendars[0].sync = false;
+      gladys.fake.calendars[0].shared = true;
+      assert.deepEqual(
+        await gladys.publishCalendars('john', [
+          { external_id: primary, name: 'Perso', description: 'Mine', color: '#00FF00' },
+        ]),
+        { success: true, created: 0, updated: 1 },
+      );
+      assert.deepEqual(gladys.fake.calendars[0], {
+        user: 'john',
+        external_id: primary,
+        selector: 'personal',
+        name: 'Perso',
+        description: 'Mine',
+        color: '#00ff00',
+        sync: false,
+        shared: true,
+      });
+      await gladys.publishCalendars('john', [{ external_id: primary, name: 'Personal' }]);
+      assert.equal(gladys.fake.calendars[0].description, 'Mine');
+      assert.deepEqual(gladys.fake.publishedCalendars.length, 3);
+      await assert.rejects(
+        gladys.publishCalendars('bob', [{ external_id: gladys.externalId('bob:p'), name: 'P' }]),
+        (error) => {
+          assert.ok(error instanceof GladysApiError);
+          assert.equal(error.status, 404);
+          assert.equal(error.message, 'CALENDAR_ACCOUNT_NOT_FOUND');
+          return true;
+        },
+      );
+      await rejectsWith400(
+        gladys.publishCalendars(
+          'john',
+          Array.from({ length: 48 }, (_, i) => ({ external_id: gladys.externalId(`john:${i}`), name: `C${i}` })),
+        ),
+        /max 50 calendars per user/,
+      );
+    });
+
+    it('should delete a calendar and its events, and refuse an unknown one', async () => {
+      const gladys = createFakeGladys({
+        calendarAccounts: [{ user: { selector: 'john', first_name: 'John', language: 'en' }, config: {} }],
+      });
+      const primary = gladys.externalId('john:primary');
+      await gladys.publishCalendars('john', [{ external_id: primary, name: 'Personal' }]);
+      await gladys.publishCalendarEvents(primary, [
+        { external_id: gladys.externalId('john:e1'), name: 'E1', start: '2026-08-14T09:00:00Z' },
+      ]);
+      assert.deepEqual(await gladys.deleteCalendar(primary), { success: true });
+      assert.deepEqual(gladys.fake.calendars, []);
+      assert.deepEqual(gladys.fake.calendarEvents, []);
+      assert.deepEqual(gladys.fake.deletedCalendars, [primary]);
+      await assert.rejects(gladys.deleteCalendar(primary), (error) => {
+        assert.equal(error.status, 404);
+        return true;
+      });
+    });
+
+    it('should upsert, move and prune the published events like Gladys', async () => {
+      const gladys = createFakeGladys({
+        calendarAccounts: [{ user: { selector: 'john', first_name: 'John', language: 'en' }, config: {} }],
+      });
+      const primary = gladys.externalId('john:primary');
+      const work = gladys.externalId('john:work');
+      await gladys.publishCalendars('john', [
+        { external_id: primary, name: 'Personal' },
+        { external_id: work, name: 'Work' },
+      ]);
+      const event = (id, start, end) => ({ external_id: gladys.externalId(`john:${id}`), name: id, start, end });
+      assert.deepEqual(
+        await gladys.publishCalendarEvents(primary, [
+          event('a', '2026-08-14T09:00:00.000Z', '2026-08-14T10:00:00.000Z'),
+          event('b', '2026-08-20T09:00:00.000Z'),
+          event('c', '2026-09-02T09:00:00.000Z'),
+        ]),
+        { success: true, created: 3, updated: 0, deleted: 0 },
+      );
+      // A window prunes the integration's events overlapping it and absent from the list.
+      assert.deepEqual(
+        await gladys.publishCalendarEvents(
+          primary,
+          [event('a', '2026-08-14T09:30:00.000Z', '2026-08-14T10:00:00.000Z'), event('d', '2026-08-31T23:00:00.000Z')],
+          { from: '2026-08-01T00:00:00.000Z', to: '2026-09-01T00:00:00.000Z' },
+        ),
+        { success: true, created: 1, updated: 1, deleted: 1 },
+      );
+      assert.deepEqual(
+        gladys.fake.calendarEvents.map((e) => [e.external_id, e.calendar_external_id, e.start]),
+        [
+          ['ext:test-integration:john:a', primary, '2026-08-14T09:30:00.000Z'],
+          ['ext:test-integration:john:c', primary, '2026-09-02T09:00:00.000Z'],
+          ['ext:test-integration:john:d', primary, '2026-08-31T23:00:00.000Z'],
+        ],
+      );
+      // An event republished under another calendar of the user is moved.
+      assert.deepEqual(await gladys.publishCalendarEvents(work, [event('c', '2026-09-02T09:00:00.000Z')]), {
+        success: true,
+        created: 0,
+        updated: 1,
+        deleted: 0,
+      });
+      assert.equal(gladys.fake.calendarEvents.find((e) => e.name === 'c').calendar_external_id, work);
+      assert.equal(gladys.fake.publishedCalendarEvents.length, 3);
+      await rejectsWith400(
+        gladys.publishCalendarEvents(primary, [event('x', '2026-10-01T00:00:00.000Z')], {
+          from: '2026-08-01T00:00:00.000Z',
+          to: '2026-09-01T00:00:00.000Z',
+        }),
+        /events\[0\]: must overlap the window/,
+      );
+      // A sync-disabled calendar refuses the push, an unknown one or a disabled user's is not found.
+      gladys.fake.calendars[0].sync = false;
+      await assert.rejects(gladys.publishCalendarEvents(primary, []), (error) => {
+        assert.equal(error.status, 403);
+        assert.equal(error.message, 'CALENDAR_SYNC_DISABLED');
+        return true;
+      });
+      await assert.rejects(gladys.publishCalendarEvents(gladys.externalId('john:nope'), []), (error) => {
+        assert.equal(error.status, 404);
+        return true;
+      });
+      gladys.fake.calendarAccounts = [];
+      await assert.rejects(gladys.publishCalendarEvents(work, []), (error) => {
+        assert.equal(error.status, 404);
+        return true;
+      });
+    });
+
+    it('should feed the declared energy calendars, read them back and list the contracts', async () => {
+      const contract = { id: 'c1', template_key: 'agile', pricing_mode: 'delegated', status: 'active' };
+      const gladys = createFakeGladys({
+        energyCalendars: { tempo: [{ starts_at: '2026-01-10T23:00:00.000Z', value: 'blue' }], 'spot-fr': [] },
+        energyContracts: [contract],
+      });
+      assert.deepEqual(await gladys.getEnergyContracts(), [contract]);
+      assert.deepEqual(
+        await gladys.publishEnergyCalendar('tempo', [
+          { date: '2026-01-12', value: 'red' },
+          { starts_at: '2026-01-11T00:00:00.000Z', value: 'white' },
+          { starts_at: '2026-01-10T23:00:00.000Z', value: 'blue' },
+        ]),
+        { success: true, count: 3, changed_from: '2026-01-11T00:00:00.000Z' },
+      );
+      assert.deepEqual(await gladys.publishEnergyCalendar('tempo', [{ date: '2026-01-12', value: 'red' }]), {
+        success: true,
+        count: 1,
+        changed_from: null,
+      });
+      assert.deepEqual(await gladys.publishEnergyCalendar('tempo', [{ date: '2026-01-12', value: 'white' }]), {
+        success: true,
+        count: 1,
+        changed_from: '2026-01-12T00:00:00.000Z',
+      });
+      assert.deepEqual(await gladys.getEnergyCalendar('tempo'), [
+        { starts_at: '2026-01-10T23:00:00.000Z', value: 'blue' },
+        { starts_at: '2026-01-11T00:00:00.000Z', value: 'white' },
+        { starts_at: '2026-01-12T00:00:00.000Z', value: 'white' },
+      ]);
+      assert.deepEqual(await gladys.getEnergyCalendar('tempo', { limit: 1 }), [
+        { starts_at: '2026-01-12T00:00:00.000Z', value: 'white' },
+      ]);
+      assert.deepEqual(await gladys.getEnergyCalendar('tempo', { from: '2026-01-11', limit: 1 }), [
+        { starts_at: '2026-01-11T00:00:00.000Z', value: 'white' },
+      ]);
+      assert.deepEqual(await gladys.getEnergyCalendar('tempo', { from: '2026-01-11', to: '2026-01-11T12:00:00Z' }), [
+        { starts_at: '2026-01-11T00:00:00.000Z', value: 'white' },
+      ]);
+      await gladys.publishEnergyCalendar('spot-fr', [
+        { starts_at: '2026-01-12T05:00:00Z', price: 0.18, currency: 'EUR' },
+      ]);
+      assert.deepEqual(gladys.fake.energyCalendars['spot-fr'], [
+        { starts_at: '2026-01-12T05:00:00.000Z', value: 0.18 },
+      ]);
+      assert.equal(gladys.fake.publishedEnergyCalendars.length, 4);
+      const forbidden = (promise) =>
+        assert.rejects(promise, (error) => {
+          assert.ok(error instanceof GladysApiError);
+          assert.equal(error.status, 403);
+          assert.match(error.message, /not declared by this integration/);
+          return true;
+        });
+      await forbidden(gladys.publishEnergyCalendar('holidays-fr', [{ date: '2026-01-01', value: 'holiday' }]));
+      await forbidden(gladys.getEnergyCalendar('holidays-fr'));
+      gladys.requestEnergyRecalculation();
+      assert.equal(gladys.fake.energyRecalculations, 1);
+    });
+
     it('should answer success to the other calls and record them', async () => {
       const gladys = createFakeGladys();
       assert.deepEqual(await gladys.startContainer('mqtt', { env: { PASSWORD: 'x' } }), { success: true });
@@ -618,6 +889,41 @@ describe('createFakeGladys(options?)', () => {
       assert.deepEqual(
         await gladys.fake.widgetAction('vacuum', 'clean', { room: 'kitchen' }, { settings: { vacuum: 'robot' } }),
         { success: true, data: { message: { en: 'clean kitchen robot' } } },
+      );
+      const options = [];
+      gladys.onWidgetAction('pellets', async (actionKey, params, received) => {
+        options.push(received);
+      });
+      await gladys.fake.widgetAction('pellets', 'delivery');
+      await gladys.fake.widgetAction('pellets', 'delivery', {}, { values: { bags: 72 } });
+      assert.deepEqual(options, [{ settings: {} }, { settings: {}, values: { bags: 72 } }]);
+    });
+
+    it('should run onCalendarAccountUpdated, onEnergyPrice and onEnergyCurrent', async () => {
+      const gladys = createFakeGladys();
+      const users = [];
+      gladys.onCalendarAccountUpdated(async (userSelector) => {
+        users.push(userSelector);
+      });
+      gladys.onEnergyPrice(async ({ intervals }) =>
+        intervals.map((i) => ({ starts_at: i.starts_at, cost: i.kwh * 0.2 })),
+      );
+      gladys.onEnergyCurrent(async ({ max_power_kw: maxPowerKw }) => ({ price: 0.2, label: `peak ${maxPowerKw}` }));
+      assert.equal(await gladys.fake.calendarAccountUpdated('john'), undefined);
+      assert.deepEqual(users, ['john']);
+      const request = {
+        contract: { id: 'c1' },
+        billing_period: { starts_at: '2026-01-01T00:00:00.000Z', ends_at: '2026-02-01T00:00:00.000Z' },
+        cumulative_before: { day: 0, month: 0, billing_period: 0 },
+        intervals: [{ starts_at: '2026-01-12T05:00:00.000Z', kwh: 1, max_power_kw: 2 }],
+      };
+      assert.deepEqual(await gladys.fake.energyPrice(request), {
+        success: true,
+        data: { costs: [{ starts_at: '2026-01-12T05:00:00.000Z', cost: 0.2 }] },
+      });
+      assert.deepEqual(
+        await gladys.fake.energyCurrent({ contract: { id: 'c1' }, cumulative: { day: 1 }, max_power_kw: 2 }),
+        { success: true, data: { price: 0.2, label: 'peak 2' } },
       );
     });
 
