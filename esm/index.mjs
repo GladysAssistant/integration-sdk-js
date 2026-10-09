@@ -7,6 +7,7 @@ export const {
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
   DEVICE_FEATURE_UNITS,
+  DEVICE_POLL_FREQUENCIES,
   DEVICE_TRANSPORTS,
   WEATHER_CONDITIONS,
   WEATHER_ALERT_SEVERITIES,
@@ -22,5 +23,6 @@ export const {
   validateWidgetImage,
   createLogger,
   logger,
+  parseMdnsTxt,
 } = sdk;
 export default sdk;

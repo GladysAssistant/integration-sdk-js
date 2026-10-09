@@ -10,12 +10,18 @@
       "import": "./esm/index.mjs",
       "require": "./lib/index.js"
     },
+    "./testing": {
+      "types": "./testing.d.ts",
+      "import": "./esm/testing.mjs",
+      "require": "./lib/testing.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
     "esm",
-    "index.d.ts"
+    "index.d.ts",
+    "testing.d.ts"
   ],
   "engines": {
     "node": ">=20"

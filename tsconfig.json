@@ -8,8 +8,9 @@
     "moduleResolution": "nodenext",
     "types": ["node"],
     "paths": {
-      "@gladysassistant/integration-sdk": ["./index.d.ts"]
+      "@gladysassistant/integration-sdk": ["./index.d.ts"],
+      "@gladysassistant/integration-sdk/testing": ["./testing.d.ts"]
     }
   },
-  "include": ["index.d.ts", "test/types/**/*.ts"]
+  "include": ["index.d.ts", "testing.d.ts", "test/types/**/*.ts"]
 }

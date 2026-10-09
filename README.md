@@ -9,6 +9,7 @@ a few dozen lines.
 - Node.js >= 20, a single runtime dependency ([`ws`](https://github.com/websockets/ws))
 - CommonJS + ESM, TypeScript typings included
 - Automatic reconnection with exponential backoff, automatic state resynchronization, automatic command acks
+- A fake Gladys for your unit tests: [`@gladysassistant/integration-sdk/testing`](#testing-your-integration)
 
 ## Getting started
 
@@ -115,6 +116,8 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `getDevices()`                             | Devices created by the user; also refreshes `gladys.devices`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `publishState(featureExternalId, value)`   | `value` is a number, or `{ text }`, or `{ state, created_at }` for a past state                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `publishStates(states)`                    | Batch (max 100 states per request)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `publishChangedStates(states, options?)`   | Publishes only the states whose value changed since the last one published through it for the same feature (see [Publishing states efficiently](#publishing-states-efficiently)); splits batches above 100, re-sends what Gladys refused, `options.heartbeat` (ms) re-sends an unchanged value once that old. Resolves `{ success, count }`                                                                                                                                                                                                                  |
+| `forgetPublishedStates(externalId?)`       | Forgets the values remembered by `publishChangedStates` — one feature, one device (all its `<device>:<feature>` ids) or everything — so they are published again. Done automatically when the user creates, updates or deletes a device                                                                                                                                                                                                                                                                                                                      |
 | `publishCameraImage(externalId, image)`    | New image of a camera device (`image/jpg;base64,...`, ≤ 150 KB, 12 images/minute per device) — the dashboard camera widget updates in real time. Dedicated channel: images never go through `publishState`                                                                                                                                                                                                                                                                                                                                                   |
 | `publishTransports(transports)`            | Per-device transport status badge (`[{ external_id, transport: 'local' \| 'cloud' \| 'unreachable', degraded?, message? }]`, max 100 per request) — the lightweight path for live cloud/local switches, no need to re-publish the discovered devices. `degraded: true` + an optional multi-language `message` flag the "works, but not nominal" state (orange dot on the badge)                                                                                                                                                                              |
 | `publishSceneEvent(key, data?)`            | Fires a scene trigger declared in the manifest `scene_triggers`: something HAPPENED (plate recognized, object detected, doorbell pressed). `data` is flat — at most 30 keys, one primitive per key (string ≤ 1000 characters, finite number, boolean, null), validated before any request. The core matches it against the filters of the scenes and starts the matching ones; a resolved call means "accepted and evaluated once", never "a scene ran". 404 on an undeclared key, 429 past 300 events/minute per integration                                |
@@ -131,7 +134,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `startContainer(name, { env }?)`           | Creates (if needed) and starts a declared sub-container — typically after generating its config files in `/data`; `env` carries runtime-computed values (secrets never go through the public manifest)                                                                                                                                                                                                                                                                                                                                                       |
 | `stopContainer(name)`                      | Stops a sub-container; the supervisor will not restart it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `restartContainer(name)`                   | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job. `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies                                                                                                                          |
+| `scanNetwork(type, options?)`              | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job (`parseMdnsTxt` turns the raw mDNS TXT entries into an object). `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies                                                           |
 | `wakeOnLan(mac, options?)`                 | Sends a standard Wake-on-LAN magic packet from the Gladys core network namespace (bridge containers cannot reach the LAN in broadcast). Requires `network_wake: true` in the manifest (403 otherwise); the core builds the fixed magic packet itself (never integration-provided bytes) and bounds the rate to 1 wake per 2 s per integration (429 beyond). Options: `{ address, port, sourcePort }`                                                                                                                                                         |
 
 ### Handlers
@@ -144,7 +147,7 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | Handler                                                               | Callback signature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise` — `value` is a number, except on the `text` category features whose commands are strings (the free text of `text`/`text`, the selected option value of a `text`/`select` dynamic select)                                                                                                                                                                                                                                                                               |
-| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states. Only the devices published with `should_poll: true` and a `poll_frequency` **in milliseconds** among `DEVICE_POLL_FREQUENCIES` are polled (see [Polling devices](#polling-devices))                                                                                                                                                                                                                                                                          |
 | `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                                                                                                                                                                                              |
 | `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -998,6 +1001,20 @@ no resolved entry, so treat its absence as normal — when present it saves aski
 Wake-on-LAN on a freshly discovered device). Scans are synchronous and bounded (`timeoutSeconds` 1–30); requires a
 Gladys with mediated-discovery support (check the `gladys_version` range of your manifest).
 
+`parseMdnsTxt(txt)` turns the raw mDNS TXT entries into an object, following the DNS-SD rules (RFC 6763): keys
+lowercased (they are case-insensitive), the value is everything after the first `=`, an entry without `=` is a
+boolean attribute (`true`), only the first occurrence of a key counts:
+
+```js
+import { parseMdnsTxt } from '@gladysassistant/integration-sdk';
+
+const services = await gladys.scanNetwork('mdns', { timeoutSeconds: 5 });
+const accessories = services.map(({ name, addresses, port, txt }) => {
+  const record = parseMdnsTxt(txt); // ['id=AA:BB:CC:DD:EE:FF', 'md=Eve Energy', 'sf=1'] → { id, md, sf }
+  return { id: record.id, model: record.md, paired: record.sf === '0', address: addresses[0], port, name };
+});
+```
+
 ### Wake-on-LAN
 
 Same network position problem, emission side: a magic packet is a UDP broadcast, which never crosses the bridge to
@@ -1016,18 +1033,53 @@ the integration never provides the payload, so the endpoint is not a general UDP
 resolved call means the packet was **emitted**, not that the device actually woke up: poll the device to confirm
 (and keep the usual retry loop, Wake-on-LAN is fire-and-forget by nature).
 
+### Polling devices
+
+Gladys polls a device — calls `onPoll` — only when it was published with **both** `should_poll: true` and a
+`poll_frequency`. `poll_frequency` is in **milliseconds** and must be one of `DEVICE_POLL_FREQUENCIES`
+(1 s, 2 s, 10 s, 15 s, 30 s or 1 min): any other value — `300` meant as seconds, `300000` for 5 minutes — makes
+`publishDiscoveredDevices` fail with a `400 BAD_REQUEST`, and a device without `should_poll: true` is never polled.
+
+```js
+import { DEVICE_POLL_FREQUENCIES } from '@gladysassistant/integration-sdk';
+
+await gladys.publishDiscoveredDevices([
+  {
+    name: 'Weather station',
+    external_id: ids.device,
+    should_poll: true,
+    poll_frequency: DEVICE_POLL_FREQUENCIES.EVERY_MINUTES, // 60000 ms
+    features: [/* … */],
+  },
+]);
+```
+
+Once a minute is the slowest pace Gladys schedules. For a slower one (a cloud API with a quota, a user setting in
+minutes), keep `EVERY_MINUTES` and skip the polls you do not need in `onPoll`, or drive the refresh with your own
+timer instead of `should_poll`. Both fields are read when the user creates the device: changing them in a later
+publication does not update a device already created.
+
 ### Publishing states efficiently
 
 The host API rate-limits `POST /state` at **300 states per minute** per integration, sized for state _changes_,
 not full snapshots. An integration polling a large fleet (e.g. 50 Tuya devices × 6 features) must deduplicate and
-publish only the values that actually changed:
+publish only the values that actually changed — `publishChangedStates` does it:
 
 ```js
-const lastValues = new Map();
-const changed = readings.filter(({ id, value }) => lastValues.get(id) !== value);
-changed.forEach(({ id, value }) => lastValues.set(id, value));
-await gladys.publishStates(changed.map(({ id, value }) => ({ device_feature_external_id: id, state: value })));
+await gladys.publishChangedStates(readings.map(({ id, value }) => ({ device_feature_external_id: id, state: value })));
+
+// Also re-send an unchanged value every 30 minutes, so a stable value stays recently dated in Gladys:
+await gladys.publishChangedStates(states, { heartbeat: 30 * 60 * 1000 });
 ```
+
+It takes the `publishStates` format and remembers, per feature, the last value published through it: an entry
+equal to it (same `state`, same `text`) is skipped — within the same call too — and nothing is sent when nothing
+changed (`{ success: true, count: 0 }`). Batches above 100 states are split, and calls run one after the other — a
+poll loop and a live event path can both call it, Gladys receives the values in call order. A value is remembered
+only once Gladys accepted it: a failed request (network error, `429`…) throws, and its states are sent again by the next call. The
+SDK forgets the values of a device when the user creates, updates or deletes it — Gladys silently drops the states
+of a feature that does not exist yet, so they must be re-sent once it does; call
+`gladys.forgetPublishedStates(externalId?)` yourself when you know Gladys lost a value.
 
 ### Device constants
 
@@ -1040,6 +1092,7 @@ import {
   DEVICE_FEATURE_CATEGORIES, // { TEMPERATURE_SENSOR: 'temperature-sensor', SWITCH: 'switch', … }
   DEVICE_FEATURE_TYPES, // grouped by category: { SWITCH: { BINARY: 'binary', POWER: 'power', … }, … }
   DEVICE_FEATURE_UNITS, // { CELSIUS: 'celsius', PERCENT: 'percent', WATT: 'watt', … }
+  DEVICE_POLL_FREQUENCIES, // in milliseconds: { EVERY_MINUTES: 60000, EVERY_30_SECONDS: 30000, … }
 } from '@gladysassistant/integration-sdk';
 ```
 
@@ -1085,6 +1138,67 @@ polling loop while Gladys is unreachable.
   the dev-mode validation of the dashboard widget contents and images).
 - Persists nothing on disk: everything resynchronizes, `/data` stays fully owned by the integration.
 - Unknown message types are ignored silently (forward compatibility).
+
+## Testing your integration
+
+`@gladysassistant/integration-sdk/testing` exports `createFakeGladys()`: a **real** `GladysIntegration` — same
+methods, same argument checks, same payload mapping — whose transport is an in-memory Gladys instead of the
+network. Pass it to the code under test in place of `new GladysIntegration()`; no server, no WebSocket, no
+hand-written stand-in to keep in sync with the SDK.
+
+```js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
+import { registerHandlers } from '../src/app.js'; // your code, takes the gladys client
+
+test('publishes the temperature on poll', async () => {
+  const gladys = createFakeGladys({ config: { api_key: 'key' } }); // selector: 'test-integration'
+  registerHandlers(gladys);
+  await gladys.connect(); // resynchronizes, then awaits your async 'connected' listeners
+
+  const [device] = gladys.fake.discoveredDevices; // published by your 'connected' listener
+  assert.deepEqual(await gladys.fake.poll(device), { success: true }); // runs onPoll, resolves with its ack
+  assert.equal(gladys.fake.lastState(`${device.external_id}:temperature`), 21.5);
+});
+```
+
+`gladys.fake` plays Gladys' side:
+
+- **Data served by the host API**, from the `createFakeGladys` options and editable at any time: `devices`,
+  `config`, `houses`, `containers`, `contacts`, `webhooks`, `status`, `scanResults` (raw results per scan type,
+  e.g. `{ mdns: [...] }`) and `linkedUser` (`linkContact` accepts any code). The `selector` (default
+  `'test-integration'`) and the SDK `logger` (default silent) are options too.
+- **What Gladys received**, as the JSON bodies Gladys would get: `states` and `lastState(featureExternalId)`,
+  `discoveredDevices` (the last published list), `connectionStatuses` / `connectionStatus`, `transports`,
+  `cameraImages`, `sceneEvents`, `messages`, `scans`, `widgetRefreshes`, `weatherRefreshes`; every host API request
+  in `requests` (`{ method, path, body, status }`) and every WebSocket message (acks, nudges) in `wsMessages`.
+- **The host API checks** that most often bite: the discovered devices (external_id prefix, known
+  category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`) and the states (external_id prefix,
+  numeric `state` or string `text`, ISO `created_at`) are validated like Gladys does, and refused with the same
+  `400` `GladysApiError` — a rejected request stays in `requests` (`status: 400`) but not in the record above.
+- **Gladys calling your handlers**: `gladys.fake.<name>(...)` runs the `on<Name>` handler with the arguments
+  the handler receives — preceded by the key for the per-key handlers (`fake.action(key, fields)`,
+  `fake.widgetAction(key, actionKey, params, { settings })`…) — and resolves with its ack
+  `{ success, data?, error? }`: `setValue`, `poll`, `getImage`, `oauthAuthorizeUrl`, `oauthCallback`,
+  `sendMessage`, `weatherGet`, `weatherGetImage`, `action`, `sceneAction`, `widgetGet`, `widgetGetImage`,
+  `widgetAction`, and `webhook` with `{ mode: 'sync' }`. The events resolve once handled — `scanRequest`,
+  `deviceCreated` / `deviceUpdated` / `deviceDeleted` (which also update `fake.devices`), `configUpdated` (also
+  `fake.config`), `hardwareUpdated`, `webhookUpdated` (also `fake.webhooks`), `webhook` in the default
+  `fire_and_forget` mode — and, unlike production where an event has no ack, an error thrown by their handler
+  rejects so the test sees it. `fake.send(type, payload)` sends any other WebSocket message.
+- **The lifecycle**: `connect()` / `disconnect()` also await your async `'connected'` / `'disconnected'`
+  listeners (an error they throw rejects), and `handleShutdown(cleanup)` does not touch the process signals:
+  `gladys.fake.shutdown(signal?)` runs the cleanup then disconnects, without exiting — it disconnects even when the
+  cleanup throws, and the cleanup error then rejects.
+
+To make a host API call fail, mock the method — e.g. a rate-limited `publishStates` with the `node:test` mock:
+
+```js
+t.mock.method(gladys, 'publishStates', async () => {
+  throw new GladysApiError(429, 'TOO_MANY_REQUESTS', 'RATE_LIMIT_EXCEEDED: max 300 states per minute');
+});
+```
 
 ## Development
 

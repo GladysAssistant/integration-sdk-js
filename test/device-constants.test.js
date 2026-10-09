@@ -3,14 +3,20 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { describe, it } = require('node:test');
 
-const { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES, DEVICE_FEATURE_UNITS } = require('../lib/device-constants');
+const {
+  DEVICE_FEATURE_CATEGORIES,
+  DEVICE_FEATURE_TYPES,
+  DEVICE_FEATURE_UNITS,
+  DEVICE_POLL_FREQUENCIES,
+} = require('../lib/device-constants');
 
 const TYPINGS = readFileSync(path.join(__dirname, '..', 'index.d.ts'), 'utf8');
 
 /**
- * Reads back the `readonly KEY: 'value';` entries a constant is declared with in
- * index.d.ts, as the same shape as the runtime object (one level of nesting for
- * DEVICE_FEATURE_TYPES), so both can be compared key by key.
+ * Reads back the `readonly KEY: 'value';` (or `readonly KEY: 1000;`) entries a
+ * constant is declared with in index.d.ts, as the same shape as the runtime
+ * object (one level of nesting for DEVICE_FEATURE_TYPES), so both can be
+ * compared key by key.
  */
 function parseDeclaration(name) {
   const start = TYPINGS.indexOf(`export declare const ${name}: {`);
@@ -21,9 +27,9 @@ function parseDeclaration(name) {
   const declaration = {};
   let group = null;
   for (const line of TYPINGS.slice(start, end).split('\n').slice(1)) {
-    const entry = line.match(/^\s+readonly ([A-Z0-9_]+): '(.*)';$/);
+    const entry = line.match(/^\s+readonly ([A-Z0-9_]+): (?:'(.*)'|(\d+));$/);
     if (entry) {
-      (group ?? declaration)[entry[1]] = entry[2];
+      (group ?? declaration)[entry[1]] = entry[2] ?? Number(entry[3]);
       continue;
     }
     const groupStart = line.match(/^\s+readonly ([A-Z0-9_]+): \{$/);
@@ -112,6 +118,17 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_UNITS.GRAM_CO2_EQ_PER_KILOWATT_HOUR, 'gram-co2eq-per-kilowatt-hour');
   });
 
+  it('should expose the poll frequencies accepted by Gladys, in milliseconds', () => {
+    assert.deepEqual(DEVICE_POLL_FREQUENCIES, {
+      EVERY_MINUTES: 60000,
+      EVERY_30_SECONDS: 30000,
+      EVERY_15_SECONDS: 15000,
+      EVERY_10_SECONDS: 10000,
+      EVERY_2_SECONDS: 2000,
+      EVERY_SECONDS: 1000,
+    });
+  });
+
   it('should only contain string values (categories and units)', () => {
     for (const value of [...Object.values(DEVICE_FEATURE_CATEGORIES), ...Object.values(DEVICE_FEATURE_UNITS)]) {
       assert.equal(typeof value, 'string');
@@ -132,5 +149,6 @@ describe('device constants', () => {
     assert.deepEqual(parseDeclaration('DEVICE_FEATURE_CATEGORIES'), DEVICE_FEATURE_CATEGORIES);
     assert.deepEqual(parseDeclaration('DEVICE_FEATURE_TYPES'), DEVICE_FEATURE_TYPES);
     assert.deepEqual(parseDeclaration('DEVICE_FEATURE_UNITS'), DEVICE_FEATURE_UNITS);
+    assert.deepEqual(parseDeclaration('DEVICE_POLL_FREQUENCIES'), DEVICE_POLL_FREQUENCIES);
   });
 });
