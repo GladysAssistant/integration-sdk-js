@@ -232,6 +232,9 @@ class FakeGladysServer {
         case 'GET /energy/contract':
           respond(200, this.energyContracts);
           break;
+        case 'POST /energy/consumption':
+          respond(200, { success: true, count: body.intervals.length, changed_from: '2026-01-12T05:30:00.000Z' });
+          break;
         default:
           respond(404, { status: 404, code: 'NOT_FOUND', message: `Route ${route} not found` });
       }
