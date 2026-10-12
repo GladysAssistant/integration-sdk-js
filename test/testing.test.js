@@ -567,6 +567,138 @@ describe('createFakeGladys(options?)', () => {
       assert.equal(gladys.fake.energyRecalculations, 1);
     });
 
+    it('should upsert the consumption published after the fact like the core and refuse what it refuses', async () => {
+      const consumption = (type, suffix) => ({
+        name: suffix,
+        external_id: `ext:test-integration:meter:${suffix}`,
+        category: DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR,
+        type,
+        unit: DEVICE_FEATURE_UNITS.KILOWATT_HOUR,
+      });
+      const meter = sensor({
+        name: 'Meter',
+        external_id: 'ext:test-integration:meter',
+        features: [
+          consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.THIRTY_MINUTES_CONSUMPTION, 'consumption'),
+          consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.DAILY_CONSUMPTION, 'daily'),
+          { ...consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.INDEX, 'index'), id: 'index-id' },
+          consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.THIRTY_MINUTES_CONSUMPTION, 'index_consumption'),
+          {
+            ...consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.DAILY_CONSUMPTION, 'derived'),
+            energy_parent_id: 'index-id',
+          },
+          consumption(DEVICE_FEATURE_TYPES.ENERGY_SENSOR.ENERGY, 'energy'),
+        ],
+      });
+      const gladys = createFakeGladys({
+        devices: [meter],
+        energyConsumption: {
+          'ext:test-integration:meter:daily': [{ created_at: '2026-01-10T00:00:00.000Z', kwh: 10 }],
+        },
+      });
+      // Upserted by instant: a 30-minute interval is stamped at its end, the
+      // last value given for an instant wins, an unchanged value writes nothing.
+      assert.deepEqual(
+        await gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [
+          { starts_at: '2026-01-12T05:30:00Z', kwh: 0.38 },
+          { starts_at: new Date('2026-01-12T05:00:00.000Z'), kwh: 0.1 },
+          { starts_at: '2026-01-12T05:00:00+00:00', kwh: 0.42 },
+        ]),
+        { success: true, count: 2, changed_from: '2026-01-12T05:30:00.000Z' },
+      );
+      assert.deepEqual(gladys.fake.energyConsumption['ext:test-integration:meter:consumption'], [
+        { created_at: '2026-01-12T05:30:00.000Z', kwh: 0.42 },
+        { created_at: '2026-01-12T06:00:00.000Z', kwh: 0.38 },
+      ]);
+      assert.deepEqual(
+        await gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [
+          { starts_at: '2026-01-12T05:30:00Z', kwh: 0.38 },
+        ]),
+        { success: true, count: 1, changed_from: null },
+      );
+      assert.deepEqual(
+        await gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [
+          { starts_at: '2026-01-12T05:30:00Z', kwh: 0.4 },
+          { starts_at: '2026-01-12T04:30:00Z', kwh: 0.5 },
+        ]),
+        { success: true, count: 2, changed_from: '2026-01-12T05:00:00.000Z' },
+      );
+      // A daily feature takes dates (UTC midnights here) and is stamped at the start of the day.
+      assert.deepEqual(
+        await gladys.publishEnergyConsumption('ext:test-integration:meter:daily', [
+          { date: '2026-01-12', kwh: 18.4 },
+          { starts_at: '2026-01-11T00:00:00.000Z', kwh: 17 },
+          { date: '2026-01-10', kwh: 10 },
+        ]),
+        { success: true, count: 3, changed_from: '2026-01-11T00:00:00.000Z' },
+      );
+      assert.deepEqual(gladys.fake.energyConsumption['ext:test-integration:meter:daily'], [
+        { created_at: '2026-01-10T00:00:00.000Z', kwh: 10 },
+        { created_at: '2026-01-11T00:00:00.000Z', kwh: 17 },
+        { created_at: '2026-01-12T00:00:00.000Z', kwh: 18.4 },
+      ]);
+      assert.equal(gladys.fake.publishedEnergyConsumption.length, 4);
+      assert.deepEqual(gladys.fake.publishedEnergyConsumption[3], {
+        device_feature_external_id: 'ext:test-integration:meter:daily',
+        intervals: [
+          { date: '2026-01-12', kwh: 18.4 },
+          { starts_at: '2026-01-11T00:00:00.000Z', kwh: 17 },
+          { date: '2026-01-10', kwh: 10 },
+        ],
+      });
+      // What the core refuses.
+      const interval = { starts_at: '2026-01-12T05:00:00Z', kwh: 1 };
+      await assert.rejects(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:unknown', [interval]),
+        (error) => {
+          assert.ok(error instanceof GladysApiError);
+          assert.equal(error.status, 404);
+          assert.match(error.message, /the device is not created/);
+          return true;
+        },
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:energy', [interval]),
+        /must be a 30-minute or daily consumption feature/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:index_consumption', [interval]),
+        /derived from a cumulative index by the core/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:derived', [{ date: '2026-01-12', kwh: 1 }]),
+        /derived from a cumulative index by the core/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [{ date: '2026-01-12', kwh: 1 }]),
+        /intervals\[0\]\.date: a 30-minute consumption takes starts_at/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [
+          { starts_at: '2026-01-12T05:10:00Z', kwh: 1 },
+        ]),
+        /intervals\[0\]\.starts_at: must be aligned on a 30-minute slot of UTC/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:daily', [
+          { starts_at: '2026-01-12T05:00:00Z', kwh: 1 },
+        ]),
+        /intervals\[0\]\.starts_at: must be a local midnight of UTC/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:consumption', [
+          { starts_at: new Date(Math.ceil(Date.now() / 1800000) * 1800000), kwh: 1 },
+        ]),
+        /intervals\[0\]: the interval must be elapsed/,
+      );
+      await rejectsWith400(
+        gladys.publishEnergyConsumption('ext:test-integration:meter:daily', [{ date: '2015-01-12', kwh: 1 }]),
+        /intervals\[0\]: starts_at must be at most 5 years ago/,
+      );
+      assert.equal(gladys.fake.publishedEnergyConsumption.length, 4);
+      assert.equal(gladys.fake.requests.filter((request) => request.status !== 200).length, 9);
+    });
+
     it('should answer success to the other calls and record them', async () => {
       const gladys = createFakeGladys();
       assert.deepEqual(await gladys.startContainer('mqtt', { env: { PASSWORD: 'x' } }), { success: true });

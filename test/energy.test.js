@@ -250,6 +250,116 @@ describe('energy contracts capability (manifest energy_contracts)', () => {
     });
   });
 
+  describe('gladys.publishEnergyConsumption(deviceFeatureExternalId, intervals)', () => {
+    const CONSUMPTION = 'ext:ext-demo:meter:consumption';
+
+    it('should POST /energy/consumption with the feature and the whitelisted intervals, dates serialized', async () => {
+      const result = await gladys.publishEnergyConsumption(CONSUMPTION, [
+        { starts_at: '2026-01-12T05:00:00Z', kwh: 0.42, extra: 'dropped' },
+        { starts_at: new Date('2026-01-12T05:30:00.000Z'), kwh: 0, date: null },
+        { date: '2026-01-11', kwh: 18.4, starts_at: undefined },
+      ]);
+      assert.deepEqual(result, { success: true, count: 3, changed_from: '2026-01-12T05:30:00.000Z' });
+      const [request] = server.getRequests('POST', '/energy/consumption');
+      assert.equal(request.authorization, `Bearer ${server.token}`);
+      assert.deepEqual(request.body, {
+        device_feature_external_id: CONSUMPTION,
+        intervals: [
+          { starts_at: '2026-01-12T05:00:00Z', kwh: 0.42 },
+          { starts_at: '2026-01-12T05:30:00.000Z', kwh: 0 },
+          { date: '2026-01-11', kwh: 18.4 },
+        ],
+      });
+    });
+
+    it('should reject a feature outside the integration or an invalid list before any request', async () => {
+      const idError = /"deviceFeatureExternalId" must start with "ext:ext-demo:"/;
+      const intervals = [{ date: '2026-01-12', kwh: 1 }];
+      await assert.rejects(gladys.publishEnergyConsumption('ext:other:meter:consumption', intervals), idError);
+      await assert.rejects(gladys.publishEnergyConsumption('ext:ext-demo:', intervals), idError);
+      await assert.rejects(gladys.publishEnergyConsumption(undefined, intervals), idError);
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, []), /"intervals" must be a non-empty array/);
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, {}), /"intervals" must be a non-empty array/);
+      await assert.rejects(
+        gladys.publishEnergyConsumption(
+          CONSUMPTION,
+          Array.from({ length: 2001 }, (_, i) => ({ starts_at: new Date(i * 1800000).toISOString(), kwh: 1 })),
+        ),
+        /maximum 2000 intervals per request/,
+      );
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [42]), /"intervals\[0\]" must be an object/);
+      assert.equal(server.getRequests('POST', '/energy/consumption').length, 0);
+    });
+
+    it('should require exactly one start and a finite kwh >= 0 per interval', async () => {
+      const startError = /"intervals\[0\]" must carry exactly one of "starts_at" \(ISO date\) or "date"/;
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ kwh: 1 }]), startError);
+      await assert.rejects(
+        gladys.publishEnergyConsumption(CONSUMPTION, [
+          { date: '2026-01-12', starts_at: '2026-01-12T05:00:00Z', kwh: 1 },
+        ]),
+        startError,
+      );
+      const kwhError = /"intervals\[0\]\.kwh" must be a finite number >= 0/;
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12' }]), kwhError);
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12', kwh: '1' }]), kwhError);
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12', kwh: -0.1 }]), kwhError);
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12', kwh: NaN }]), kwhError);
+      await assert.rejects(
+        gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12', kwh: Infinity }]),
+        kwhError,
+      );
+      assert.equal(server.getRequests('POST', '/energy/consumption').length, 0);
+    });
+
+    it('should enforce the date and starts_at shapes', async () => {
+      for (const date of ['12/01/2026', 20260112, '2026-13-01', '2026-01-32', '2026-02-30']) {
+        await assert.rejects(
+          gladys.publishEnergyConsumption(CONSUMPTION, [{ date, kwh: 1 }]),
+          /"intervals\[0\]\.date" must be a YYYY-MM-DD date that exists/,
+          String(date),
+        );
+      }
+      await assert.rejects(
+        gladys.publishEnergyConsumption(CONSUMPTION, [{ starts_at: 'monday', kwh: 1 }]),
+        /"intervals\[0\]\.starts_at" must be an ISO 8601 date string or a Date/,
+      );
+      await assert.rejects(
+        gladys.publishEnergyConsumption(CONSUMPTION, [{ starts_at: new Date('x'), kwh: 1 }]),
+        /"intervals\[0\]\.starts_at" must be a valid Date/,
+      );
+      assert.equal(server.getRequests('POST', '/energy/consumption').length, 0);
+      await gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2024-02-29', kwh: 1 }]);
+      assert.equal(server.getRequests('POST', '/energy/consumption').length, 1);
+    });
+
+    it('should throw a GladysApiError on a device not created (404) and a refused interval (400)', async () => {
+      server.forceResponse('POST', '/energy/consumption', 404, {
+        status: 404,
+        code: 'NOT_FOUND',
+        message: `feature "${CONSUMPTION}" not found: the device is not created`,
+      });
+      await assert.rejects(gladys.publishEnergyConsumption(CONSUMPTION, [{ date: '2026-01-12', kwh: 1 }]), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 404);
+        return true;
+      });
+      server.forceResponse('POST', '/energy/consumption', 400, {
+        status: 400,
+        code: 'BAD_REQUEST',
+        message: 'intervals[0].starts_at: must be aligned on a 30-minute slot of America/Toronto',
+      });
+      await assert.rejects(
+        gladys.publishEnergyConsumption(CONSUMPTION, [{ starts_at: '2026-01-12T05:10:00Z', kwh: 1 }]),
+        (error) => {
+          assert.equal(error.status, 400);
+          assert.match(error.message, /aligned on a 30-minute slot/);
+          return true;
+        },
+      );
+    });
+  });
+
   describe('gladys.requestEnergyRecalculation()', () => {
     it('should send an energy-calendar.refresh message with an empty payload, without message_id', async () => {
       await gladys.connect();

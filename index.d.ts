@@ -798,6 +798,32 @@ export interface PublishEnergyCalendarResponse extends SuccessResponse {
   changed_from: string | null;
 }
 
+/**
+ * One interval of the publishEnergyConsumption batch (contract
+ * host-api-endpoints.md): exactly one of `starts_at` or `date`, and the kWh
+ * consumed over it.
+ */
+export interface EnergyConsumptionIntervalInput {
+  /**
+   * Start of the interval: a 30-minute slot of the Gladys timezone on a
+   * 30-minute feature, a local midnight on a daily one. Elapsed (its end at
+   * or before now), at most 5 years ago.
+   */
+  starts_at?: DateInput | null;
+  /** Daily features only: the local date (`YYYY-MM-DD`) in the Gladys timezone. */
+  date?: string | null;
+  /** The kWh consumed over the interval: finite, ≥ 0 (converted into the feature unit core-side). */
+  kwh: number;
+}
+
+/** Response of POST /energy/consumption. */
+export interface PublishEnergyConsumptionResponse extends SuccessResponse {
+  /** Number of distinct instants in the batch (the last value given for an instant wins). */
+  count: number;
+  /** Instant of the earliest state whose value changed (ISO), null when none did. */
+  changed_from: string | null;
+}
+
 /** Pricing mode of an energy contract template: the core rule engine, or the integration (onEnergyPrice). */
 export type EnergyPricingMode = 'rules' | 'delegated';
 
@@ -2364,6 +2390,27 @@ export declare class GladysIntegration extends EventEmitter {
    * period, status — never the meter nor the consumption.
    */
   getEnergyContracts(): Promise<EnergyContract[]>;
+
+  /**
+   * Publish dated consumption intervals on a 30-minute or daily consumption
+   * feature of this integration — for the suppliers whose readings arrive
+   * after the fact: such an integration publishes no index but an
+   * `energy-sensor` / `thirty-minutes-consumption` or `daily-consumption`
+   * feature it feeds itself, the core derives its cost feature and prices it.
+   * Each interval carries `starts_at` (aligned on a 30-minute slot of the
+   * Gladys timezone, a local midnight for a daily feature) or, on a daily
+   * feature, `date` (`YYYY-MM-DD`), and `kwh`; ≤ 2,000 per call, elapsed, at
+   * most 5 years old. Upserted by instant (a correction replaces, never
+   * duplicates; an unchanged value writes nothing); a changed value queues a
+   * bounded cost recalculation of the root meter from the earliest change.
+   * Device not created → 404 (retry once it exists); a feature that is not a
+   * consumption, or derived from a published index → 400. Validated SDK-side
+   * before any request.
+   */
+  publishEnergyConsumption(
+    deviceFeatureExternalId: string,
+    intervals: EnergyConsumptionIntervalInput[],
+  ): Promise<PublishEnergyConsumptionResponse>;
 
   /**
    * Fetch the Gladys Plus webhook state (contract B.17): whether the relay is

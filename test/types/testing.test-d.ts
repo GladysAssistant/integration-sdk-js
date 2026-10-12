@@ -36,6 +36,7 @@ const main = async (): Promise<void> => {
     ],
     energyCalendars: { tempo: [{ starts_at: '2026-01-12T05:00:00.000Z', value: 'red' }] },
     energyContracts: [],
+    energyConsumption: { 'ext:weather:meter:daily': [{ created_at: '2026-01-12T00:00:00.000Z', kwh: 18.4 }] },
   });
   registerHandlers(gladys);
   await gladys.connect();
@@ -71,6 +72,9 @@ const main = async (): Promise<void> => {
   });
   const deleted: string[] = gladys.fake.deletedCalendars;
   const recalculations: number = gladys.fake.energyRecalculations;
+  const consumptionBatches: { device_feature_external_id: string }[] = gladys.fake.publishedEnergyConsumption;
+  const storedKwh: number = gladys.fake.energyConsumption['ext:weather:meter:daily'][0].kwh;
+  void [consumptionBatches, storedKwh];
   gladys.fake.calendars[0].sync = false;
   const query: Record<string, string> | undefined = requests[0].query;
   void [priceAck, deleted, recalculations, query];

@@ -11,6 +11,7 @@ import {
   ContainerPort,
   EnergyCalendarEntry,
   EnergyCalendarEntryInput,
+  EnergyConsumptionIntervalInput,
   EnergyContract,
   EnergyCurrentPrice,
   EnergyCurrentRequest,
@@ -20,6 +21,7 @@ import {
   PublishCalendarEventsResponse,
   PublishCalendarsResponse,
   PublishEnergyCalendarResponse,
+  PublishEnergyConsumptionResponse,
   WidgetActionField,
   WidgetActionValues,
   ContainerPortProtocol,
@@ -491,6 +493,15 @@ const main = async (): Promise<void> => {
     return { price: 0.18, valid_until: new Date(), next_price: null, label: 'Off-peak' };
   });
   gladys.requestEnergyRecalculation();
+  const halfHour: EnergyConsumptionIntervalInput = { starts_at: new Date(), kwh: 0.42 };
+  const day: EnergyConsumptionIntervalInput = { date: '2026-01-12', kwh: 18.4 };
+  const consumptionPublished: PublishEnergyConsumptionResponse = await gladys.publishEnergyConsumption(
+    'ext:demo:meter:consumption',
+    [halfHour, day],
+  );
+  const consumptionChangedFrom: string | null = consumptionPublished.changed_from;
+  const consumptionCount: number = consumptionPublished.count;
+  void [consumptionChangedFrom, consumptionCount];
   const energyPriceType: string = WEBSOCKET_MESSAGE_TYPES.EXTERNAL_INTEGRATION.ENERGY_CONTRACT_PRICE;
   void [changedFrom, entryValue, delegated, energyPriceType];
   const contentIssues: string[] = validateWidgetContent({ components: [] });

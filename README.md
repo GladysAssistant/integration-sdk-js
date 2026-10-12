@@ -133,6 +133,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `getEnergyCalendar(key, options?)`                           | Energy contracts: reads back a declared and owned calendar (`[{ starts_at, value }]`, oldest first over `{ from, to }`, the `limit` last ones without a window) — resume after a restart                                                                                                                                                                                                                                                                                                                                                                     |
 | `getEnergyContracts()`                                       | Energy contracts: the users' contracts referencing a template of the integration (`id`, `template_key`, `template_version`, `pricing_mode`, `inputs`, `valid_from`, `valid_to`, `timezone`, `currency`, `billing_period_start_day`, `status`) — never the meter nor the consumption                                                                                                                                                                                                                                                                          |
 | `requestEnergyRecalculation()`                               | Energy contracts: fire-and-forget nudge — the core recomputes the recent costs (48 h) of the meters whose contract reads a calendar the integration declares. Rate-limited core-side (1/min per integration), ignored without a declared calendar, dropped silently while disconnected                                                                                                                                                                                                                                                                       |
+| `publishEnergyConsumption(featureExternalId, intervals)`     | Energy: dated consumption of a supplier whose readings arrive after the fact, on a `thirty-minutes-consumption` or `daily-consumption` feature the integration feeds itself (`[{ starts_at \| date, kwh }]`, ≤ 2,000 per call, aligned on the Gladys clock, elapsed, ≤ 5 years old) — upserted by instant, never through `POST /state`. Resolves `{ success, count, changed_from }`; a changed value queues a bounded cost recalculation of the meter core-side. Device not created → 404 (retry once it exists). Validated before any request               |
 | `requestWeatherRefresh()`                                    | Weather integrations: fire-and-forget freshness nudge — asks the core to re-pull the weather NOW (through `onWeatherGet`) and re-evaluate the weather-alert scene triggers, instead of waiting for the 30-minute scheduled check. Carries no data, expects no answer; rate-limited core-side (1/min per integration, silently dropped beyond), dropped silently while disconnected                                                                                                                                                                           |
 | `requestWidgetRefresh(key)`                                  | Dashboard widgets: fire-and-forget freshness nudge for ONE widget — the core drops its cached content and every open instance re-pulls it through `onWidgetGet`, instead of waiting for the content `ttl_seconds`. Carries no data; rate-limited core-side (1 per 10 s per widget, silently dropped beyond), dropped silently while disconnected. Live device-bound tiles and charts need no nudge                                                                                                                                                           |
 | `getWebhooks()`                                              | Gladys Plus webhook state: `{ available, webhooks: [{ key, mode, url }] }` — the ready-to-register public URL of each webhook declared in the manifest. `available: false` (no Gladys Plus linked) → degrade to poll only                                                                                                                                                                                                                                                                                                                                    |
@@ -871,7 +872,9 @@ The vocabulary (eight component types, every text a plain string or a multi-lang
 - **The content budget** — at most 8 components, 1 focal (`chart` \| `card-list` \| `image`), 6 tiles (`value` \|
   `gauge`), 2 texts (1 `body`), 1 `status`, 4 `button`s. Beyond a cap the core drops components in content order:
   put what matters first. The card renders its slots in a canonical order (header texts, tiles, focal, status,
-  buttons) whatever the order sent.
+  buttons) whatever the order sent; the tiles form a grid whose column count the core picks from their number and
+  the card width (3 stay on one row, 4 as 4 or 2 × 2, 5 or 6 as rows of 3 or 2) — nothing to declare, the
+  integration does not know the screen width.
 - **The payload is never trusted** — unknown component types and fields are dropped, texts truncated, arrays
   capped, a component missing a required field is dropped (never the whole content). `version` (integer ≥ 1,
   default 1) exists for a breaking change the vocabulary is designed never to make; a content over 256 KB is
@@ -1041,8 +1044,40 @@ The doctrines to know, in numbers:
   a contract silently: the user updates it from the wizard. `getEnergyContracts()` lists the contracts referencing
   the integration's templates with their `status`.
 
-Requires a Gladys with energy-contracts support (check the `gladys_version` range of your manifest). The tariff
-grammar of the `rules` mode is documented with the community catalogue (`GladysAssistant/energy-contracts`).
+#### Suppliers whose readings arrive after the fact: `publishEnergyConsumption`
+
+A connected meter publishes a cumulative **index** (`energy-sensor` / `index`) and the core derives the rest: the
+30-minute consumption, its cost, the attachment to the main electric meter. That index path is a _live_ pipeline,
+though: an index published a day late (Hydro-Québec, and every supplier portal that serves yesterday's readings)
+collapses a whole day into one half-hour, and a daily total never falls in a critical-peak slot. Such an
+integration publishes **no index** but a consumption feature it feeds itself — `energy-sensor` /
+`thirty-minutes-consumption` (what a time-of-use or critical-peak tariff needs) or `daily-consumption` (enough for
+a flat or a tiered tariff) — and dates every interval:
+
+```js
+// 30-minute slots of the Gladys timezone, or `date` (the local YYYY-MM-DD) on a
+// daily feature. Upserted by instant: a corrected reading replaces the stored
+// value, an unchanged one writes nothing. Split an hourly reading in two equal halves.
+const { count, changed_from } = await gladys.publishEnergyConsumption(ids.feature('consumption'), [
+  { starts_at: '2026-01-12T05:00:00Z', kwh: 0.42 },
+  { starts_at: '2026-01-12T05:30:00Z', kwh: 0.38 },
+]);
+```
+
+The core derives the cost feature of that consumption (`<external_id>_cost`) and attaches it to the main electric
+meter like an index — unless the consumption **is** the main meter (the supplier meter the contract is attached to,
+the common case), which stays a root. Intervals are bounded (≤ 2,000 per call, `kwh` finite and ≥ 0, `starts_at`
+aligned on a 30-minute slot of the Gladys timezone — a local midnight for a daily feature — elapsed and at most 5
+years old, 400 otherwise); the feature must be the integration's, a consumption (400) and created by the user (404:
+retry once the device exists), and a consumption the core derives from a published index of the same device is
+refused (its states come from the index deltas). Every value that changed queues a cost recalculation of the
+feature's root meter from the earliest change, bounded to 1 per meter per 10 minutes — there is no dated
+"recalculate from": the publication carries the date. These states never go through `publishStates` (whose
+`created_at` is a state's instant, not an interval, and whose rate limit is sized for state changes).
+
+Requires a Gladys with energy-contracts support (check the `gladys_version` range of your manifest;
+`publishEnergyConsumption` needs a newer one). The tariff grammar of the `rules` mode is documented with the
+community catalogue (`GladysAssistant/energy-contracts`).
 
 ### Camera images
 
@@ -1428,15 +1463,15 @@ test('publishes the temperature on poll', async () => {
 - **Data served by the host API**, from the `createFakeGladys` options and editable at any time: `devices`,
   `config`, `houses`, `containers`, `contacts`, `webhooks`, `status`, `scanResults` (raw results per scan type,
   e.g. `{ mdns: [...] }`), `linkedUser` (`linkContact` accepts any code), `calendarAccounts`, `calendars` and
-  `calendarEvents` (calendar integrations), `energyCalendars` (the declared tariff calendars, key → entries) and
-  `energyContracts`. The `selector` (default `'test-integration'`) and the SDK `logger` (default silent) are
-  options too.
+  `calendarEvents` (calendar integrations), `energyCalendars` (the declared tariff calendars, key → entries),
+  `energyContracts` and `energyConsumption` (the consumption states published after the fact, feature → states).
+  The `selector` (default `'test-integration'`) and the SDK `logger` (default silent) are options too.
 - **What Gladys received**, as the JSON bodies Gladys would get: `states` and `lastState(featureExternalId)`,
   `discoveredDevices` (the last published list), `connectionStatuses` / `connectionStatus`, `transports`,
   `cameraImages`, `sceneEvents`, `messages`, `scans`, `widgetRefreshes`, `weatherRefreshes`, `publishedCalendars`,
-  `publishedCalendarEvents`, `deletedCalendars`, `publishedEnergyCalendars`, `energyRecalculations`; every host
-  API request in `requests` (`{ method, path, query?, body, status }`) and every WebSocket message (acks, nudges)
-  in `wsMessages`.
+  `publishedCalendarEvents`, `deletedCalendars`, `publishedEnergyCalendars`, `publishedEnergyConsumption`,
+  `energyRecalculations`; every host API request in `requests` (`{ method, path, query?, body, status }`) and
+  every WebSocket message (acks, nudges) in `wsMessages`.
 - **The host API checks** that most often bite: the discovered devices (external_id prefix, known
   category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`) and the states (external_id prefix,
   numeric `state` or string `text`, ISO `created_at`) are validated like Gladys does, and refused with the same
@@ -1445,7 +1480,11 @@ test('publishes the temperature on poll', async () => {
   user only (404 otherwise; a new calendar starts `sync: true`, `shared: false`), `publishCalendarEvents` upserts,
   moves and prunes `fake.calendarEvents` (403 on a `sync: false` calendar, 404 on an unknown one — flip the toggles
   in `fake.calendars` like a user would), `deleteCalendar` removes both; `publishEnergyCalendar` /
-  `getEnergyCalendar` only reach a declared key (403 otherwise) and keep `fake.energyCalendars` sorted.
+  `getEnergyCalendar` only reach a declared key (403 otherwise) and keep `fake.energyCalendars` sorted;
+  `publishEnergyConsumption` only reaches a consumption feature of `fake.devices` (404 on a device not created,
+  400 on another feature or on a consumption derived from an index of the same device), refuses an unaligned,
+  future or too old interval like the core (the fake Gladys runs in UTC) and upserts `fake.energyConsumption`
+  by instant.
 - **Gladys calling your handlers**: `gladys.fake.<name>(...)` runs the `on<Name>` handler with the arguments
   the handler receives — preceded by the key for the per-key handlers (`fake.action(key, fields)`,
   `fake.widgetAction(key, actionKey, params, { settings, values })`…) — and resolves with its ack

@@ -80,10 +80,23 @@ export interface FakeGladysOptions {
   energyCalendars?: Record<string, EnergyCalendarEntry[]>;
   /** Contracts referencing the integration templates (GET /energy/contract). */
   energyContracts?: EnergyContract[];
+  /**
+   * Consumption states already published after the fact (publishEnergyConsumption):
+   * feature external id → states stamped like the core, the end of a 30-minute
+   * interval or the start of a day (the fake Gladys runs in UTC).
+   */
+  energyConsumption?: Record<string, FakeEnergyConsumptionState[]>;
   /** GET /status response. */
   status?: IntegrationStatus;
   /** SDK logger. Default: silent. */
   logger?: Logger;
+}
+
+/** A consumption state stored by the fake Gladys (publishEnergyConsumption). */
+export interface FakeEnergyConsumptionState {
+  /** ISO instant the state is stamped with: the end of a 30-minute interval, the start of a day. */
+  created_at: string;
+  kwh: number;
 }
 
 /** One host API request received by the fake Gladys. */
@@ -137,6 +150,12 @@ export interface FakeGladys {
   /** Declared tariff calendars (key → entries), fed by `publishEnergyCalendar`. */
   energyCalendars: Record<string, EnergyCalendarEntry[]>;
   energyContracts: EnergyContract[];
+  /**
+   * The consumption states published after the fact, per feature external id,
+   * upserted by instant like the core does (a 30-minute interval stamped at
+   * its end, a day at its start — in UTC).
+   */
+  energyConsumption: Record<string, FakeEnergyConsumptionState[]>;
   status: IntegrationStatus;
 
   /** Every host API request received, in order — rejected ones included (status 400). */
@@ -183,6 +202,11 @@ export interface FakeGladys {
   readonly deletedCalendars: string[];
   /** Every published energy calendar batch, in order (wire format). */
   readonly publishedEnergyCalendars: { calendar_key: string; entries: Record<string, unknown>[] }[];
+  /** Every published consumption batch, in order (wire format). */
+  readonly publishedEnergyConsumption: {
+    device_feature_external_id: string;
+    intervals: Record<string, unknown>[];
+  }[];
   /** The number of energy recalculation nudges. */
   readonly energyRecalculations: number;
 
