@@ -1,3 +1,10 @@
+## [0.15.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.14.0...v0.15.0) (2026-10-12)
+
+### Features
+
+* poll frequencies, fake Gladys for tests, mDNS TXT parser and state deduplication ([#37](https://github.com/GladysAssistant/integration-sdk-js/issues/37)) ([9b90ef9](https://github.com/GladysAssistant/integration-sdk-js/commit/9b90ef9a929fd6c6fe1aa879e3ec998bded67600)), closes [#36](https://github.com/GladysAssistant/integration-sdk-js/issues/36)
+* resync with Gladys master (calendar type, energy contracts, widget action forms, houses select, thermostat preset) ([#38](https://github.com/GladysAssistant/integration-sdk-js/issues/38)) ([500db06](https://github.com/GladysAssistant/integration-sdk-js/commit/500db06ce106e6a36c4725841671fe7e348a6a18))
+* resync with Gladys master (dated energy consumption for late-data suppliers) ([#40](https://github.com/GladysAssistant/integration-sdk-js/issues/40)) ([713a2a3](https://github.com/GladysAssistant/integration-sdk-js/commit/713a2a321db490d57a8dbc25849d5c08845a3635)), closes [#38](https://github.com/GladysAssistant/integration-sdk-js/issues/38) [#3187](https://github.com/GladysAssistant/integration-sdk-js/issues/3187) [#3183](https://github.com/GladysAssistant/integration-sdk-js/issues/3183)
 ## [0.14.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.13.0...v0.14.0) (2026-09-21)
 
 ### Features
