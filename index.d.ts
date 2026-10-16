@@ -1370,6 +1370,11 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly GRID_SENSOR: 'grid-sensor';
   readonly HEATER: 'heater';
   readonly HEPA_FILTER_MONITORING: 'hepa-filter-monitoring';
+  /**
+   * Control of the power the device itself delivers through its AC output:
+   * the command counterpart of the read-only `home-output-sensor`.
+   */
+  readonly HOME_OUTPUT: 'home-output';
   readonly HOME_OUTPUT_SENSOR: 'home-output-sensor';
   readonly HUMIDITY_SENSOR: 'humidity-sensor';
   readonly LEAK_SENSOR: 'leak-sensor';
@@ -1627,6 +1632,14 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly OFF_GRID_POWER: 'off-grid-power';
     readonly OFF_GRID_INDEX: 'off-grid-index';
   };
+  readonly HOME_OUTPUT: {
+    /**
+     * Maximum power delivered through the device's AC output, solar and
+     * battery together, W/kW (>= 0), a command. `0` means no output, never
+     * "unlimited"; a persistent bound the device clamps and reports back.
+     */
+    readonly POWER_LIMIT: 'power-limit';
+  };
   readonly BATTERY_STORAGE: {
     readonly BATTERY_LEVEL: 'battery-level';
     readonly CHARGE_POWER: 'charge-power';
@@ -1634,6 +1647,25 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly CHARGE_INDEX: 'charge-index';
     readonly DISCHARGE_INDEX: 'discharge-index';
     readonly BATTERY_ENERGY_REMAINING: 'battery-energy-remaining';
+    /** Maximum power INTO the battery, any source, W/kW (>= 0), a command. `0` forbids charging. */
+    readonly CHARGE_POWER_LIMIT: 'charge-power-limit';
+    /** Maximum power OUT of the battery, W/kW (>= 0), a command. `0` forbids discharging. */
+    readonly DISCHARGE_POWER_LIMIT: 'discharge-power-limit';
+    /** State of charge where charging stops, % (0..100), a command. */
+    readonly TARGET_CHARGE_LIMIT: 'target-charge-limit';
+    /** Reserve: state of charge where discharging stops, % (0..100), a command. */
+    readonly TARGET_DISCHARGE_LIMIT: 'target-discharge-limit';
+    /**
+     * Operating mode, an index into the core's BATTERY_STORAGE_MODE (auto 0,
+     * charge 1, discharge 2, standby 3, time-of-use 4, backup 5), a command.
+     * No unit.
+     */
+    readonly MODE: 'mode';
+    /**
+     * Maximum power INTO the battery FROM THE GRID, W/kW (>= 0), a command: a
+     * sub-bound of `charge-power-limit`; `0` stops grid charging only.
+     */
+    readonly GRID_CHARGE_POWER_LIMIT: 'grid-charge-power-limit';
   };
   readonly TELEINFORMATION: {
     readonly BINARY: 'binary';

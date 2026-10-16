@@ -719,6 +719,33 @@ describe('createFakeGladys(options?)', () => {
       assert.equal((await gladys.publishDiscoveredDevices([device])).count, 1);
     });
 
+    it('should accept the battery storage commands and the home-output power limit', async () => {
+      const gladys = createFakeGladys();
+      const command = (key, category, type, unit) => ({
+        name: key,
+        external_id: `ext:test-integration:battery:1:${key}`,
+        category,
+        type,
+        unit,
+        read_only: false,
+      });
+      const { BATTERY_STORAGE, HOME_OUTPUT } = DEVICE_FEATURE_TYPES;
+      const storage = DEVICE_FEATURE_CATEGORIES.BATTERY_STORAGE;
+      const battery = sensor({
+        external_id: 'ext:test-integration:battery:1',
+        features: [
+          command('charge', storage, BATTERY_STORAGE.CHARGE_POWER_LIMIT, DEVICE_FEATURE_UNITS.WATT),
+          command('discharge', storage, BATTERY_STORAGE.DISCHARGE_POWER_LIMIT, DEVICE_FEATURE_UNITS.WATT),
+          command('target', storage, BATTERY_STORAGE.TARGET_CHARGE_LIMIT, DEVICE_FEATURE_UNITS.PERCENT),
+          command('reserve', storage, BATTERY_STORAGE.TARGET_DISCHARGE_LIMIT, DEVICE_FEATURE_UNITS.PERCENT),
+          command('mode', storage, BATTERY_STORAGE.MODE, null),
+          command('grid', storage, BATTERY_STORAGE.GRID_CHARGE_POWER_LIMIT, DEVICE_FEATURE_UNITS.KILOWATT),
+          command('output', DEVICE_FEATURE_CATEGORIES.HOME_OUTPUT, HOME_OUTPUT.POWER_LIMIT, DEVICE_FEATURE_UNITS.WATT),
+        ],
+      });
+      assert.equal((await gladys.publishDiscoveredDevices([battery])).count, 1);
+    });
+
     it('should reject a poll frequency in seconds, like Gladys', async () => {
       const gladys = createFakeGladys();
       await rejectsWith400(
