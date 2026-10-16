@@ -1757,7 +1757,16 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly PRESET: 'preset';
   };
   readonly AIRQUALITY_SENSOR: {
+    /** A numeric air quality index (unit AQI), read on the US EPA scale (0-500). */
     readonly AQI: 'aqi';
+    /**
+     * The overall air quality as a named level (integer, read-only, no unit), Matter's
+     * AirQualityEnum: 0 unknown, 1 good, 2 fair, 3 moderate, 4 poor, 5 very poor,
+     * 6 extremely poor — Gladys translates the levels. Same measurement as `aqi`: publish
+     * the form the device natively reports, never both. Needs the Gladys release shipping
+     * GladysAssistant/Gladys#3213 (expected 5.3.0): an older Gladys rejects the unknown type.
+     */
+    readonly LEVEL: 'level';
   };
   readonly PH_SENSOR: {
     readonly DECIMAL: 'decimal';

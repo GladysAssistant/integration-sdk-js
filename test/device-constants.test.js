@@ -91,6 +91,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.SMAXN1_1, 'smaxn1_1');
     assert.equal(DEVICE_FEATURE_TYPES.TELEINFORMATION.IMAX1, 'imax1');
     assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.CONTAMINATION_STATE, 'contamination-state');
+    assert.equal(DEVICE_FEATURE_TYPES.AIRQUALITY_SENSOR.LEVEL, 'level');
     assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.MUTED, 'muted');
     assert.equal(DEVICE_FEATURE_TYPES.SMOKE_SENSOR.TEMPORARY_MUTE, 'temporary-mute');
     assert.equal(DEVICE_FEATURE_TYPES.CAMERA.MOVE, 'move');
