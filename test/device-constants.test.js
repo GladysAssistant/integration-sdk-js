@@ -66,6 +66,7 @@ describe('device constants', () => {
   it('should expose the canonical type strings, grouped by category', () => {
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BINARY, 'binary');
     assert.equal(DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS, 'brightness');
+    assert.equal(DEVICE_FEATURE_TYPES.LIGHT.OPERATING_MODE, 'operating-mode');
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
