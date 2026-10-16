@@ -55,6 +55,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_CATEGORIES.CHARGING_STATION, 'charging-station');
     assert.equal(DEVICE_FEATURE_CATEGORIES.WATER_HEATER, 'water-heater');
     assert.equal(DEVICE_FEATURE_CATEGORIES.GRID_SENSOR, 'grid-sensor');
+    assert.equal(DEVICE_FEATURE_CATEGORIES.HOME_OUTPUT, 'home-output');
     assert.equal(DEVICE_FEATURE_CATEGORIES.HOME_OUTPUT_SENSOR, 'home-output-sensor');
     assert.equal(DEVICE_FEATURE_CATEGORIES.MAINTENANCE, 'maintenance');
     assert.equal(DEVICE_FEATURE_CATEGORIES.NO2_SENSOR, 'no2-sensor');
@@ -69,6 +70,12 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.SENSOR.DECIMAL, 'decimal');
     assert.equal(DEVICE_FEATURE_TYPES.SWITCH.POWER, 'power');
     assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER, 'charge-power');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.CHARGE_POWER_LIMIT, 'charge-power-limit');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.DISCHARGE_POWER_LIMIT, 'discharge-power-limit');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.TARGET_CHARGE_LIMIT, 'target-charge-limit');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.TARGET_DISCHARGE_LIMIT, 'target-discharge-limit');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.MODE, 'mode');
+    assert.equal(DEVICE_FEATURE_TYPES.BATTERY_STORAGE.GRID_CHARGE_POWER_LIMIT, 'grid-charge-power-limit');
     assert.equal(DEVICE_FEATURE_TYPES.WATER_VALVE.FLOW, 'flow');
     assert.equal(DEVICE_FEATURE_TYPES.DOORBELL.RING, 'ring');
     assert.equal(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED, 'fan-speed');
@@ -106,6 +113,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.INPUT_POWER, 'input-power');
     assert.equal(DEVICE_FEATURE_TYPES.GRID_SENSOR.OUTPUT_INDEX, 'output-index');
     assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.OFF_GRID_POWER, 'off-grid-power');
+    assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT.POWER_LIMIT, 'power-limit');
     assert.equal(DEVICE_FEATURE_TYPES.TEXT.SELECT, 'select');
     assert.equal(DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING, 'life-remaining');
   });
