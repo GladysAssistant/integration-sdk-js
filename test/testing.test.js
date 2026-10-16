@@ -826,6 +826,36 @@ describe('createFakeGladys(options?)', () => {
       });
     });
 
+    it('should run onCameraWebRtcOffer and onCameraWebRtcStop', async () => {
+      const gladys = createFakeGladys();
+      const stopped = [];
+      gladys.onCameraWebRtcOffer(async (camera, { sessionId, sdp }) => ({
+        sdpAnswer: `answer-to-${sdp}`,
+        sessionId: `vendor-${sessionId}`,
+        streamId: 'tag-1',
+      }));
+      gladys.onCameraWebRtcStop(async (camera, session) => {
+        stopped.push(session);
+      });
+      assert.deepEqual(await gladys.fake.cameraWebRtcOffer(device, { sessionId: 'session-1', sdp: 'v=0' }), {
+        success: true,
+        data: { sdp_answer: 'answer-to-v=0', session_id: 'vendor-session-1', stream_id: 'tag-1' },
+      });
+      assert.deepEqual(
+        await gladys.fake.cameraWebRtcStop(device, { sessionId: 'vendor-session-1', streamId: 'tag-1' }),
+        {
+          success: true,
+        },
+      );
+      assert.deepEqual(await gladys.fake.cameraWebRtcStop(device, { sessionId: 'vendor-session-2' }), {
+        success: true,
+      });
+      assert.deepEqual(stopped, [
+        { sessionId: 'vendor-session-1', streamId: 'tag-1' },
+        { sessionId: 'vendor-session-2', streamId: null },
+      ]);
+    });
+
     it('should run onScanRequest and let its error reject', async () => {
       const gladys = createFakeGladys();
       gladys.onScanRequest(async () => {

@@ -159,6 +159,8 @@ commands that expect an answer) —, it throws → `success:false` with the erro
 | `onSetValue(cb)`                                                      | `(device, deviceFeature, value) => Promise` — `value` is a number, except on the `text` category features whose commands are strings (the free text of `text`/`text`, the selected option value of a `text`/`select` dynamic select)                                                                                                                                                                                                                                                                                                                                                                |
 | `onPoll(cb)`                                                          | `(device) => Promise` — respond by publishing states. Only the devices published with `should_poll: true` and a `poll_frequency` **in milliseconds** among `DEVICE_POLL_FREQUENCIES` are polled (see [Polling devices](#polling-devices))                                                                                                                                                                                                                                                                                                                                                           |
 | `onGetImage(cb)`                                                      | `(device) => Promise<string>` — capture and resolve a FRESH camera image (`image/jpg;base64,...`, ≤ 150 KB); acked back as `data.image`, awaited under 15 s (not 5 s) so an ffmpeg-style capture fits                                                                                                                                                                                                                                                                                                                                                                                               |
+| `onCameraWebRtcOffer(cb)`                                             | `(device, { sessionId, sdp }) => Promise<{ sdpAnswer, sessionId?, streamId? }>` — WebRTC live view of a camera published with `CAMERA_STREAM_PROTOCOL_PARAM` = `CAMERA_STREAM_PROTOCOLS.WEBRTC`: relay the complete SDP offer to the camera's cloud and resolve its answer (≤ 64 KB; vendor ids ≤ 256 characters, handed back on stop); awaited under 15 s, see [Camera images](#camera-images)                                                                                                                                                                                                     |
+| `onCameraWebRtcStop(cb)`                                              | `(device, { sessionId, streamId }) => Promise` — the WebRTC live view ended (pause, dashboard left, or no browser ping for 30 s): end the vendor session                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `onScanRequest(cb)`                                                   | `() => Promise` — respond through `publishDiscoveredDevices`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `onDeviceCreated(cb)` / `onDeviceUpdated(cb)` / `onDeviceDeleted(cb)` | `(device) => Promise`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `onConfigUpdated(cb)`                                                 | `(config) => Promise` — complete new values                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -1103,6 +1105,34 @@ await gladys.publishCameraImage(ids.device, `image/jpg;base64,${jpeg.toString('b
 
 Images never go through `publishState`: dedicated channel, out of the states history and of the 300 states/minute
 rate limit.
+
+**WebRTC live view.** Some cameras only stream in WebRTC through their vendor's cloud — no HLS, no RTSP, nothing on
+the LAN (Netatmo video doorbell and Advance indoor camera…). Publish such a camera with the reserved
+`GLADYS_CAMERA_STREAM_PROTOCOL` param set to `webrtc` and the dashboard negotiates its live view in the browser:
+Gladys only relays the SDP offer and answer to `onCameraWebRtcOffer`, the media flows from the vendor's cloud to
+the browser, locally as through Gladys Plus. The offer is complete (every ICE candidate inlined, no trickle).
+Resolve the vendor's answer, with its own session / stream ids when it has some: they come back to
+`onCameraWebRtcStop` when the view ends (pause, dashboard left, or no browser ping for 30 s — a closed tab). Without
+the param, the live view stays on Gladys's `rtsp-camera` (HLS from `CAMERA_URL`). Requires a Gladys version with the
+WebRTC relay (GladysAssistant/Gladys#3215).
+
+```js
+const { CAMERA_STREAM_PROTOCOL_PARAM, CAMERA_STREAM_PROTOCOLS } = require('@gladysassistant/integration-sdk');
+
+// in the discovered camera: params: [{ name: CAMERA_STREAM_PROTOCOL_PARAM, value: CAMERA_STREAM_PROTOCOLS.WEBRTC }]
+
+gladys.onCameraWebRtcOffer(async (device, { sessionId, sdp }) => {
+  const answer = await vendor.webrtcOffer(device.external_id, { sdp, sessionId }); // your cloud API
+  return { sdpAnswer: answer.sdp, sessionId: answer.sessionId, streamId: answer.streamId };
+});
+
+gladys.onCameraWebRtcStop(async (device, { sessionId, streamId }) => {
+  await vendor.webrtcTerminate(device.external_id, { sessionId, streamId });
+});
+```
+
+In tests, `gladys.fake.cameraWebRtcOffer(device, { sessionId, sdp })` and
+`gladys.fake.cameraWebRtcStop(device, { sessionId, streamId })` simulate both commands.
 
 **Motorized (PTZ) cameras** add ordinary command features to the same device — no new plumbing, movement commands
 arrive through `onSetValue` like any feature. `CAMERA.MOVE` is one feature for all movements: the value names the
