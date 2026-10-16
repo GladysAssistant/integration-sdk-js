@@ -42,6 +42,12 @@ const main = async (): Promise<void> => {
   await gladys.connect();
 
   const ack: FakeGladysAck = await gladys.fake.poll({ external_id: 'ext:weather:station:1' });
+  const offerAck: FakeGladysAck = await gladys.fake.cameraWebRtcOffer(
+    { external_id: 'ext:weather:station:1' },
+    { sessionId: 'session-1', sdp: 'v=0' },
+  );
+  await gladys.fake.cameraWebRtcStop({ external_id: 'ext:weather:station:1' }, { sessionId: 'session-1' });
+  void offerAck;
   const success: boolean = ack.success;
   const error: string | undefined = ack.error;
   const last: number | string | undefined = gladys.fake.lastState('ext:weather:station:1:temperature');

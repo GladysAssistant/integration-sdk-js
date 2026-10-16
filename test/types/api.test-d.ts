@@ -4,6 +4,9 @@
  */
 import {
   ActionFields,
+  CAMERA_STREAM_PROTOCOL_PARAM,
+  CAMERA_STREAM_PROTOCOLS,
+  CameraWebRtcAnswer,
   CalendarAccount,
   CalendarEventInput,
   CalendarInput,
@@ -139,6 +142,20 @@ const main = async (): Promise<void> => {
   });
 
   gladys.onGetImage(async (device: Device) => `image/jpg;base64,${device.external_id}`);
+
+  gladys.onCameraWebRtcOffer(async (device: Device, { sessionId, sdp }): Promise<CameraWebRtcAnswer> => ({
+    sdpAnswer: `${device.external_id}:${sdp}`,
+    sessionId,
+    streamId: null,
+  }));
+  gladys.onCameraWebRtcStop(async (device: Device, { sessionId, streamId }) => {
+    await gladys.publishCameraImage(device.external_id, `${sessionId}:${streamId}`);
+  });
+  const webRtcParam: { name: string; value: string } = {
+    name: CAMERA_STREAM_PROTOCOL_PARAM,
+    value: CAMERA_STREAM_PROTOCOLS.WEBRTC,
+  };
+  void webRtcParam;
 
   gladys.onConfigUpdated(async (config: IntegrationConfig) => {
     await gladys.setConfig({ last_seen_config: JSON.stringify(config) });

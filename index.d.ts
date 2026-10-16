@@ -2001,6 +2001,8 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     OAUTH_CALLBACK: string;
     ACTION_RUN: string;
     CAMERA_GET_IMAGE: string;
+    CAMERA_WEBRTC_OFFER: string;
+    CAMERA_WEBRTC_STOP: string;
     WEATHER_GET: string;
     WEATHER_GET_IMAGE: string;
     WEATHER_REFRESH: string;
@@ -2020,6 +2022,43 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     HEARTBEAT: string;
   };
 };
+
+/**
+ * Name of the reserved device param declaring how a camera's live view is
+ * negotiated (contract C.3): publish it with `CAMERA_STREAM_PROTOCOLS.WEBRTC`
+ * on a camera streaming only in WebRTC, and implement onCameraWebRtcOffer /
+ * onCameraWebRtcStop.
+ */
+export declare const CAMERA_STREAM_PROTOCOL_PARAM: 'GLADYS_CAMERA_STREAM_PROTOCOL';
+
+/** Values of the GLADYS_CAMERA_STREAM_PROTOCOL device param (contract C.3). */
+export declare const CAMERA_STREAM_PROTOCOLS: {
+  readonly WEBRTC: 'webrtc';
+};
+
+/** The browser's offer relayed by Gladys to onCameraWebRtcOffer. */
+export interface CameraWebRtcOffer {
+  /** Session id given by Gladys; answer with the vendor's own if it names one. */
+  sessionId: string;
+  /** The browser's COMPLETE SDP offer, every ICE candidate inlined (no trickle). */
+  sdp: string;
+}
+
+/** What an onCameraWebRtcOffer handler resolves. */
+export interface CameraWebRtcAnswer {
+  /** The camera's SDP answer, at most 64 KB. */
+  sdpAnswer: string;
+  /** The vendor's session id (≤ 256 characters), handed back on stop; defaults to Gladys's. */
+  sessionId?: string | null;
+  /** The vendor's stream id (≤ 256 characters, e.g. Netatmo's tag_id), handed back on stop. */
+  streamId?: string | null;
+}
+
+/** The ids of a WebRTC session to end, as onCameraWebRtcOffer returned them. */
+export interface CameraWebRtcSession {
+  sessionId: string;
+  streamId: string | null;
+}
 
 /** Values of the per-device transport status (contract C.3). */
 export declare const DEVICE_TRANSPORTS: {
@@ -2518,6 +2557,23 @@ export declare class GladysIntegration extends EventEmitter {
    * standard 5 s) so an ffmpeg-style capture fits.
    */
   onGetImage(callback: (device: Device) => string | Promise<string>): void;
+
+  /**
+   * Handler called when the user starts the live view of a camera published
+   * with `GLADYS_CAMERA_STREAM_PROTOCOL` = `webrtc` (contract C.3/C.4). Relay
+   * the browser's complete SDP offer to the camera's cloud and resolve its
+   * answer; awaited under 15 s. An answer outside the bounds (empty or > 64 KB
+   * SDP, ids not strings or > 256 characters) acks the command as failed.
+   */
+  onCameraWebRtcOffer(
+    callback: (device: Device, offer: CameraWebRtcOffer) => CameraWebRtcAnswer | Promise<CameraWebRtcAnswer>,
+  ): void;
+
+  /**
+   * Handler called when a WebRTC live view ends (pause, dashboard left, or no
+   * browser ping for 30 s): end the vendor session.
+   */
+  onCameraWebRtcStop(callback: (device: Device, session: CameraWebRtcSession) => void | Promise<void>): void;
 
   /** Handler called when the user asks for a device scan. */
   onScanRequest(callback: () => void | Promise<void>): void;

@@ -224,6 +224,10 @@ export interface FakeGladys {
   poll(device: Device): Promise<FakeGladysAck>;
   /** Gladys needs a fresh camera image (onGetImage); the image is in `data.image`. */
   getImage(device: Device): Promise<FakeGladysAck>;
+  /** The user starts a camera's WebRTC live view (onCameraWebRtcOffer); the answer is in `data` (`sdp_answer`, `session_id`, `stream_id`). */
+  cameraWebRtcOffer(device: Device, offer: { sessionId: string; sdp: string }): Promise<FakeGladysAck>;
+  /** A camera's WebRTC live view ends (onCameraWebRtcStop). */
+  cameraWebRtcStop(device: Device, session: { sessionId: string; streamId?: string | null }): Promise<FakeGladysAck>;
   /** The user asks for a device scan (onScanRequest). */
   scanRequest(): Promise<void>;
   /** The user creates a device (onDeviceCreated); also added to `devices`. */
