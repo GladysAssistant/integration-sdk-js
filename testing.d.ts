@@ -4,6 +4,7 @@
 
 import {
   ActionFields,
+  AiChatRequest,
   CalendarAccount,
   Device,
   DeviceFeature,
@@ -23,6 +24,9 @@ import {
   LinkedUser,
   Logger,
   MessageContact,
+  MusicMedia,
+  MusicMediaType,
+  MusicPlayMode,
   OutgoingMessage,
   SceneActionFields,
   WeatherGetOptions,
@@ -284,6 +288,28 @@ export interface FakeGladys {
   energyPrice(request: EnergyPriceRequest): Promise<FakeGladysAck>;
   /** Gladys asks for the current price of a delegated contract (onEnergyCurrent); the price is in `data`. */
   energyCurrent(request: EnergyCurrentRequest): Promise<FakeGladysAck>;
+  /** Gladys asks the AI provider for a chat completion (onAiChat); the completion is in `data`. */
+  aiChat(request: AiChatRequest): Promise<FakeGladysAck>;
+  /** Gladys asks the TTS provider to synthesize a text (onTtsSynthesize; default language null); the audio is in `data.audio`. */
+  ttsSynthesize(text: string, language?: string | null): Promise<FakeGladysAck>;
+  /** A user opens the catalog of a player (onMusicBrowse; default: the root, offset 0, limit 50); `{ items, total }` in `data`. */
+  musicBrowse(
+    device: Device,
+    options?: { parentId?: string | null; offset?: number; limit?: number },
+  ): Promise<FakeGladysAck>;
+  /** A user searches the catalog of a player (onMusicSearch; default: no type filter, limit 20); `{ items }` in `data`. */
+  musicSearch(
+    device: Device,
+    options: { query: string; type?: MusicMediaType | null; limit?: number },
+  ): Promise<FakeGladysAck>;
+  /** A user (or a scene) starts a media on a player (onMusicPlay; default mode 'replace'). */
+  musicPlay(device: Device, media: MusicMedia, mode?: MusicPlayMode): Promise<FakeGladysAck>;
+  /** A user opens the queue of a player (onMusicQueueGet; default offset 0, limit 50); `{ items, current_index, total }` in `data`. */
+  musicQueueGet(device: Device, options?: { offset?: number; limit?: number }): Promise<FakeGladysAck>;
+  /** A user taps an item of the queue of a player (onMusicQueuePlay). */
+  musicQueuePlay(device: Device, index: number): Promise<FakeGladysAck>;
+  /** Gladys needs the bytes of an artwork (onMusicGetArtwork, or the default handler); the image is in `data.image`. */
+  musicGetArtwork(key: string): Promise<FakeGladysAck>;
   /**
    * The supervisor stops the container: run the handleShutdown cleanup, then disconnect (without exiting). The
    * client disconnects even when the cleanup throws; the cleanup error then rejects.

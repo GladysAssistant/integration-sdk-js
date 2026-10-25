@@ -4,6 +4,26 @@
  */
 import {
   ActionFields,
+  AI_CHAT_PURPOSES,
+  AiChatCompletion,
+  AiChatPurpose,
+  AiChatRequest,
+  artworkKey,
+  MediaItem,
+  MUSIC_MEDIA_TYPES,
+  MUSIC_PLAY_MODES,
+  MUSIC_PLAYBACK_STATE,
+  MUSIC_REPEAT_MODE,
+  MusicBrowseResult,
+  MusicPlaybackState,
+  MusicQueueResult,
+  MusicSearchResult,
+  NowPlaying,
+  PublishNowPlayingResponse,
+  TTS_AUDIO_CONTENT_TYPES,
+  TtsAudioContentType,
+  validateAiCompletion,
+  validateMediaItems,
   CalendarAccount,
   CalendarEventInput,
   CalendarInput,
@@ -569,6 +589,88 @@ const main = async (): Promise<void> => {
     logger.info('stopping on', signal);
   });
   void [ids.device, featureId, category, featureType, unit];
+
+  // AI providers (manifest type "ai").
+  gladys.onAiChat(async (request: AiChatRequest): Promise<AiChatCompletion> => {
+    const purpose: AiChatPurpose | undefined = request.purpose;
+    const cheap: boolean = purpose === AI_CHAT_PURPOSES.INTENT_CLASSIFICATION;
+    void [cheap, request.messages[0].content, request.tools, request.max_tokens];
+    return {
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'weather_get', arguments: '{}' } }],
+          },
+        },
+      ],
+    };
+  });
+  const completionIssues: string[] = validateAiCompletion({ choices: [] });
+
+  // TTS providers (manifest type "tts").
+  gladys.onTtsSynthesize(async (text: string, language: string | null): Promise<string> => {
+    const contentType: TtsAudioContentType = 'audio/mpeg';
+    const extension: 'mp3' = TTS_AUDIO_CONTENT_TYPES['audio/mpeg'];
+    void [text, language, extension];
+    return `${contentType};base64,SUQz`;
+  });
+
+  // Music players (manifest `music` field).
+  const playing: MusicPlaybackState = MUSIC_PLAYBACK_STATE.PLAYING;
+  const nowPlaying: NowPlaying = {
+    playback_state: playing,
+    title: 'Blue in Green',
+    artist: 'Miles Davis',
+    album: 'Kind of Blue',
+    artwork_url: 'https://example.com/kind-of-blue.jpg',
+    duration: 337,
+    position: 12,
+    shuffle: false,
+    repeat: MUSIC_REPEAT_MODE.ALL,
+    mute: 0,
+    volume: 40,
+  };
+  const nowPlayingPublished: PublishNowPlayingResponse = await gladys.publishNowPlaying(ids.device, nowPlaying, {
+    featureExternalIds: { title: ids.feature('track-title') },
+  });
+  const publishedCount: number = nowPlayingPublished.count;
+  const key: string = gladys.artworkKey('https://example.com/kind-of-blue.jpg');
+  const pureKey: string = artworkKey('https://example.com/kind-of-blue.jpg');
+  const item: MediaItem = {
+    id: 'spotify:playlist:1',
+    type: MUSIC_MEDIA_TYPES.PLAYLIST,
+    title: "Today's Top Hits",
+    subtitle: 'Spotify',
+    duration: null,
+    artwork_key: key,
+    browsable: false,
+    playable: true,
+  };
+  const itemIssues: string[] = validateMediaItems([item]);
+  gladys.onMusicBrowse(async (device: Device, { parentId, offset, limit }): Promise<MusicBrowseResult> => {
+    const root: boolean = parentId === null;
+    void [device.external_id, root, offset, limit];
+    return { items: [item], total: 1 };
+  });
+  gladys.onMusicSearch(async (device: Device, { query, type, limit }): Promise<MusicSearchResult> => {
+    void [device, query, type, limit];
+    return { items: [] };
+  });
+  gladys.onMusicPlay(async (device: Device, media, mode) => {
+    const replace: boolean = mode === MUSIC_PLAY_MODES.REPLACE;
+    void [device, media.id, media.type, replace];
+  });
+  gladys.onMusicQueueGet(async (device: Device, { offset, limit }): Promise<MusicQueueResult> => {
+    void [device, offset, limit];
+    return { items: [item], currentIndex: null, total: 1 };
+  });
+  gladys.onMusicQueuePlay(async (device: Device, index: number) => {
+    void [device, index];
+  });
+  gladys.onMusicGetArtwork(async (artwork: string): Promise<string> => `base64-of-${artwork}`);
+  void [completionIssues, publishedCount, pureKey, itemIssues];
 
   await gladys.disconnect();
 
