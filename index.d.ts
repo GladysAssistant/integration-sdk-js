@@ -1628,6 +1628,13 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly POWER: 'power';
     readonly EFFECT_MODE: 'effect-mode';
     readonly EFFECT_SPEED: 'effect-speed';
+    /**
+     * Who decides whether the light is lit (core LIGHT_OPERATING_MODE: 0 off and
+     * 1 on, both forced; 2 auto, the light decides from its own sensors; 3 schedule,
+     * the light's own timetable). A command; the subset a light supports is declared
+     * through supported_options. Not BINARY, which is whether the lamp is lit now.
+     */
+    readonly OPERATING_MODE: 'operating-mode';
   };
   readonly SENSOR: {
     readonly DECIMAL: 'decimal';
