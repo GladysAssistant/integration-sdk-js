@@ -1,3 +1,8 @@
+## [0.16.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.15.0...v0.16.0) (2026-10-25)
+
+### Features
+
+* resync with Gladys master (music players, AI and TTS provider types) ([#45](https://github.com/GladysAssistant/integration-sdk-js/issues/45)) ([5998689](https://github.com/GladysAssistant/integration-sdk-js/commit/5998689eb24664a24b9d17b14f75de6b5d0f7c24)), closes [#40](https://github.com/GladysAssistant/integration-sdk-js/issues/40) [3187/#3183](https://github.com/3187/integration-sdk-js/issues/3183) [#3238](https://github.com/GladysAssistant/integration-sdk-js/issues/3238) [#3238](https://github.com/GladysAssistant/integration-sdk-js/issues/3238) [#3211](https://github.com/GladysAssistant/integration-sdk-js/issues/3211) [#3212](https://github.com/GladysAssistant/integration-sdk-js/issues/3212) [#3199](https://github.com/GladysAssistant/integration-sdk-js/issues/3199) [pre-#3199](https://github.com/GladysAssistant/pre-/issues/3199)
 ## [0.15.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.14.0...v0.15.0) (2026-10-12)
 
 ### Features
