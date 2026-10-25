@@ -78,6 +78,16 @@ const main = async (): Promise<void> => {
   gladys.fake.calendars[0].sync = false;
   const query: Record<string, string> | undefined = requests[0].query;
   void [priceAck, deleted, recalculations, query];
+  const chatAck: FakeGladysAck = await gladys.fake.aiChat({ messages: [{ role: 'user', content: 'Hi' }] });
+  const ttsAck: FakeGladysAck = await gladys.fake.ttsSynthesize('Bonjour', 'fr');
+  const player = { external_id: 'ext:weather:player:1' };
+  const browseAck: FakeGladysAck = await gladys.fake.musicBrowse(player, { parentId: 'favorites', limit: 10 });
+  const searchAck: FakeGladysAck = await gladys.fake.musicSearch(player, { query: 'jazz', type: 'playlist' });
+  const playAck: FakeGladysAck = await gladys.fake.musicPlay(player, { id: 'x', type: 'track' }, 'append');
+  const queueAck: FakeGladysAck = await gladys.fake.musicQueueGet(player);
+  const jumpAck: FakeGladysAck = await gladys.fake.musicQueuePlay(player, 3);
+  const artworkAck: FakeGladysAck = await gladys.fake.musicGetArtwork(gladys.artworkKey('https://a/b.jpg'));
+  void [chatAck, ttsAck, browseAck, searchAck, playAck, queueAck, jumpAck, artworkAck];
   await gladys.fake.shutdown('SIGINT');
 
   void [success, error, last, states, status, widgetAck, webhookAck, refreshes];

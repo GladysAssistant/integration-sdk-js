@@ -90,9 +90,10 @@ export interface Device {
   features?: DeviceFeature[];
   params?: DeviceParam[];
   /**
-   * Whether the Gladys scheduler polls the device (calls onPoll). Default
-   * false: a device is polled only with `should_poll: true` AND a
-   * `poll_frequency`.
+   * Whether the Gladys scheduler polls the device (calls onPoll). Set to true
+   * by the core on a discovered device carrying a `poll_frequency`, unless
+   * the integration publishes `should_poll: false` explicitly (never polled
+   * then). A boolean (400 otherwise).
    */
   should_poll?: boolean;
   /**
@@ -1287,6 +1288,197 @@ export type WidgetActionResult = string | MultiLanguageMessage | { message: stri
  * Error thrown for every non-2xx response of the Gladys host API, carrying the
  * standard Gladys error attributes.
  */
+// AI providers (manifest `type: "ai"`, contract capabilities/ai-type.md).
+
+/** The `purpose` hint of a relayed chat completion request. */
+export type AiChatPurpose = 'chat' | 'intent-classification' | 'weekly-digest';
+
+/** One message of an OpenAI-compatible chat completion request. */
+export interface AiChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool' | (string & {});
+  /** A string, or OpenAI content parts (text and `image_url` parts for the vision requests of the chat). */
+  content: string | null | Array<Record<string, unknown>>;
+  tool_calls?: AiChatToolCall[];
+  tool_call_id?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+/** One OpenAI-compatible tool definition of a request. */
+export interface AiChatTool {
+  type: 'function';
+  function: { name: string; description?: string; parameters?: Record<string, unknown>; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+/**
+ * The OpenAI-compatible chat completion request relayed to an AI provider
+ * (the `model` field is stripped by the core; `tools`, `tool_choice`,
+ * `max_tokens` and `categories` are present when the caller set them).
+ */
+export interface AiChatRequest {
+  messages: AiChatMessage[];
+  tools?: AiChatTool[];
+  tool_choice?: 'auto' | 'required' | 'none' | Record<string, unknown>;
+  max_tokens?: number;
+  /** Gladys hint: what asks — a smart adapter picks a cheap model for the router, a strong one for the chat. */
+  purpose?: AiChatPurpose;
+  /** Gladys hint: the intent categories of a chat request. */
+  categories?: string[];
+  [key: string]: unknown;
+}
+
+/** One tool call of a completion: `id` ≤ 128 characters, `function.name` matching `^[a-zA-Z0-9_-]{1,64}$`, `arguments` a JSON string ≤ 100,000 characters (`"{}"` when absent). */
+export interface AiChatToolCall {
+  id?: string | null;
+  type: 'function';
+  function: { name: string; arguments?: string };
+  [key: string]: unknown;
+}
+
+/** The message of a completion: `content` a string (≤ 50,000 characters kept) or null, at most 20 `tool_calls`. */
+export interface AiChatCompletionMessage {
+  role?: 'assistant' | (string & {});
+  content?: string | null;
+  tool_calls?: AiChatToolCall[] | null;
+  [key: string]: unknown;
+}
+
+/**
+ * An OpenAI-compatible completion, as resolved by an onAiChat handler: only
+ * `choices[0].message` is read by the core (every other field is dropped).
+ */
+export interface AiChatCompletion {
+  choices: Array<{ message: AiChatCompletionMessage; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+// TTS providers (manifest `type: "tts"`, contract capabilities/tts-type.md).
+
+/** Content types of a synthesized clip, mapped to the extension of the URL the core serves. */
+export type TtsAudioContentType = 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/aac';
+
+// Music players (contract capabilities/music.md).
+
+/** Playback state of a player: PAUSED 0, PLAYING 1, IDLE 2 (nothing loaded or stopped), BUFFERING 3 (reported only). */
+export type MusicPlaybackState = 0 | 1 | 2 | 3;
+
+/** Repeat mode of a player: OFF 0, ALL 1, ONE 2. */
+export type MusicRepeatMode = 0 | 1 | 2;
+
+/** Type of a MediaItem — never a vendor label. */
+export type MusicMediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'folder';
+
+/** Mode of a play command: `replace` for every integration, `next`/`append` for the ones declaring `music.append`. */
+export type MusicPlayMode = 'replace' | 'next' | 'append';
+
+/**
+ * One item of the queue, the catalog or a search (contract
+ * capabilities/music.md, section 4.2). `id` is opaque and owned by the
+ * integration (≤ 512 characters) — it is what a play command carries back;
+ * texts above 200 characters are truncated by the core; `artwork_key` is a
+ * key from `artworkKey`, the bytes served through `onMusicGetArtwork`.
+ */
+export interface MediaItem {
+  id: string;
+  type: MusicMediaType;
+  title: string;
+  /** The artist of a track, the owner of a playlist, the station's slogan. */
+  subtitle?: string | null;
+  /** Integer seconds, null when not applicable. */
+  duration?: number | null;
+  artwork_key?: string | null;
+  /** Whether the user can open it (a `folder`, an `album`). Default false. */
+  browsable?: boolean;
+  /** Whether the user can play it (a `track`, a `playlist`). Default false. */
+  playable?: boolean;
+}
+
+/** The `media` of a play command: an item of the integration's own catalog. */
+export interface MusicMedia {
+  id: string;
+  type: MusicMediaType;
+}
+
+/** Options of an onMusicBrowse call: `parentId` null for the root, else the `id` of a browsable item; `limit` ≤ 100. */
+export interface MusicBrowseOptions {
+  parentId: string | null;
+  offset: number;
+  limit: number;
+}
+
+/** Answer of an onMusicBrowse handler: a page of items, and the size of the whole list when known. */
+export interface MusicBrowseResult {
+  items: MediaItem[];
+  total?: number | null;
+}
+
+/** Options of an onMusicSearch call: `query` 1-200 characters, `type` a filter or null, `limit` ≤ 50. */
+export interface MusicSearchOptions {
+  query: string;
+  type: MusicMediaType | null;
+  limit: number;
+}
+
+/** Answer of an onMusicSearch handler. */
+export interface MusicSearchResult {
+  items: MediaItem[];
+}
+
+/** Options of an onMusicQueueGet call (`limit` ≤ 100). */
+export interface MusicQueueOptions {
+  offset: number;
+  limit: number;
+}
+
+/** Answer of an onMusicQueueGet handler: the requested page, `currentIndex` and `total` describing the FULL queue. */
+export interface MusicQueueResult {
+  items: MediaItem[];
+  /** Index of the playing item in the full queue, null when nothing plays. */
+  currentIndex?: number | null;
+  total?: number | null;
+}
+
+/**
+ * What a player is playing, for `publishNowPlaying`: an absent key means
+ * UNCHANGED; clearing a text is an explicit `''`, `artwork_url: null`
+ * publishes an empty artwork.
+ */
+export interface NowPlaying {
+  playback_state?: MusicPlaybackState;
+  /** Title of the loaded track, or of the stream / station (≤ 200 characters kept). */
+  title?: string;
+  artist?: string;
+  /** Album, playlist or show the loaded track belongs to. */
+  album?: string;
+  /** Source URL of the current artwork, turned into its key by `artworkKey`; null for none. */
+  artwork_url?: string | null;
+  /** Seconds; 0 for a live stream or when unknown. */
+  duration?: number;
+  /** Seconds, the position at this instant (the dashboard extrapolates); published on events only. */
+  position?: number;
+  shuffle?: boolean | 0 | 1;
+  repeat?: MusicRepeatMode;
+  /** Independent from volume: a muted player keeps its level. */
+  mute?: boolean | 0 | 1;
+  /** 0-100. */
+  volume?: number;
+}
+
+/** Options of publishNowPlaying. */
+export interface PublishNowPlayingOptions {
+  /**
+   * Feature external ids by music feature type (`title`, `artwork`,
+   * `position`…), when they do not follow `` `${deviceExternalId}:${type}` ``.
+   */
+  featureExternalIds?: Partial<Record<string, string>>;
+}
+
+/** Response of publishNowPlaying: `count` states actually published (0 when nothing changed). */
+export interface PublishNowPlayingResponse extends SuccessResponse {
+  count: number;
+}
+
 export declare class GladysApiError extends Error {
   status: number;
   code: string;
@@ -1586,6 +1778,15 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly NEXT: 'next';
     readonly PLAYBACK_STATE: 'playback_state';
     readonly PLAY_NOTIFICATION: 'play_notification';
+    readonly TITLE: 'title';
+    readonly ARTIST: 'artist';
+    readonly ALBUM: 'album';
+    readonly ARTWORK: 'artwork';
+    readonly DURATION: 'duration';
+    readonly POSITION: 'position';
+    readonly SHUFFLE: 'shuffle';
+    readonly REPEAT: 'repeat';
+    readonly MUTE: 'mute';
   };
   readonly ENERGY_SENSOR: {
     readonly BINARY: 'binary';
@@ -1962,7 +2163,8 @@ export declare const DEVICE_FEATURE_UNITS: {
 
 /**
  * The only values a device `poll_frequency` accepts, in MILLISECONDS (mirror
- * of server/utils/constants.js). The device must also carry `should_poll: true`.
+ * of server/utils/constants.js). A discovered device carrying one is polled
+ * unless it says `should_poll: false`.
  */
 export declare const DEVICE_POLL_FREQUENCIES: {
   readonly EVERY_MINUTES: 60000;
@@ -2000,10 +2202,12 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     OAUTH_GET_AUTHORIZE_URL: string;
     OAUTH_CALLBACK: string;
     ACTION_RUN: string;
+    AI_CHAT: string;
     CAMERA_GET_IMAGE: string;
     WEATHER_GET: string;
     WEATHER_GET_IMAGE: string;
     WEATHER_REFRESH: string;
+    TTS_SYNTHESIZE: string;
     MESSAGE_SEND: string;
     WEBHOOK_RECEIVED: string;
     WEBHOOK_REQUEST: string;
@@ -2017,8 +2221,61 @@ export declare const WEBSOCKET_MESSAGE_TYPES: {
     ENERGY_CONTRACT_PRICE: string;
     ENERGY_CONTRACT_CURRENT: string;
     ENERGY_CALENDAR_REFRESH: string;
+    MUSIC_BROWSE: string;
+    MUSIC_SEARCH: string;
+    MUSIC_PLAY: string;
+    MUSIC_QUEUE_GET: string;
+    MUSIC_QUEUE_PLAY: string;
+    MUSIC_GET_ARTWORK: string;
     HEARTBEAT: string;
   };
+};
+
+/** The `purpose` hints of the chat completion requests relayed to an AI provider (contract capabilities/ai-type.md). */
+export declare const AI_CHAT_PURPOSES: {
+  readonly CHAT: 'chat';
+  readonly INTENT_CLASSIFICATION: 'intent-classification';
+  readonly WEEKLY_DIGEST: 'weekly-digest';
+};
+
+/** Content types a TTS provider may resolve, mapped to the URL extension the core serves (contract capabilities/tts-type.md). */
+export declare const TTS_AUDIO_CONTENT_TYPES: {
+  readonly 'audio/mpeg': 'mp3';
+  readonly 'audio/wav': 'wav';
+  readonly 'audio/ogg': 'ogg';
+  readonly 'audio/aac': 'aac';
+};
+
+/** Values of the `music`/`playback_state` feature (contract capabilities/music.md): writing 0/1/2 pauses/plays/stops, BUFFERING is reported only. */
+export declare const MUSIC_PLAYBACK_STATE: {
+  readonly PLAYING: 1;
+  readonly PAUSED: 0;
+  readonly IDLE: 2;
+  readonly BUFFERING: 3;
+};
+
+/** Values of the `music`/`repeat` feature. */
+export declare const MUSIC_REPEAT_MODE: {
+  readonly OFF: 0;
+  readonly ALL: 1;
+  readonly ONE: 2;
+};
+
+/** Types of the MediaItems of the on-demand music catalog. */
+export declare const MUSIC_MEDIA_TYPES: {
+  readonly TRACK: 'track';
+  readonly ALBUM: 'album';
+  readonly ARTIST: 'artist';
+  readonly PLAYLIST: 'playlist';
+  readonly RADIO: 'radio';
+  readonly FOLDER: 'folder';
+};
+
+/** Modes of a music play command. */
+export declare const MUSIC_PLAY_MODES: {
+  readonly REPLACE: 'replace';
+  readonly NEXT: 'next';
+  readonly APPEND: 'append';
 };
 
 /** Values of the per-device transport status (contract C.3). */
@@ -2154,6 +2411,38 @@ export declare function validateWidgetContent(content: unknown): string[];
 export declare function validateWidgetImage(rawBase64: unknown): string[];
 
 /**
+ * Deterministic artwork key of a source URL (contract capabilities/music.md,
+ * section 3): `art-` + 12 hex of a SHA-1 of the URL. The pure function; the
+ * `gladys.artworkKey(url)` method also records the URL for the default
+ * artwork handler.
+ */
+export declare function artworkKey(url: string): string;
+
+/**
+ * Validate the `items` of a browse, search or queue answer the way the
+ * Gladys core will (contract capabilities/music.md, section 4.2): at most
+ * 100 items, each with a string `id` (≤ 512 characters), a non-empty
+ * `title`, a `type` of MUSIC_MEDIA_TYPES, texts ≤ 200 characters, a valid
+ * `artwork_key`, boolean flags, no unknown field. Returns what the core
+ * would drop or truncate as human-readable strings, empty when the list
+ * goes through unchanged. Run by the SDK in dev mode on every resolved
+ * answer.
+ */
+export declare function validateMediaItems(items: unknown): string[];
+
+/**
+ * Validate an OpenAI-compatible completion the way the Gladys core will
+ * (contract capabilities/ai-type.md): an object `choices[0].message`, a
+ * string or null `content` (≤ 50,000 characters kept), at most 20
+ * `tool_calls` with a valid `function.name` and string `arguments`
+ * (≤ 100,000 characters). Returns what the core would refuse or truncate as
+ * human-readable strings, empty when the completion goes through unchanged.
+ * Run by the SDK in dev mode on every completion an onAiChat handler
+ * resolves.
+ */
+export declare function validateAiCompletion(completion: unknown): string[];
+
+/**
  * Client of the Gladys host API + integration WebSocket. See the README for a
  * complete example.
  */
@@ -2262,6 +2551,42 @@ export declare class GladysIntegration extends EventEmitter {
    * states history and rate limit.
    */
   publishCameraImage(deviceExternalId: string, image: string): Promise<SuccessResponse>;
+
+  /**
+   * Deterministic artwork key of a source URL (`art-` + 12 hex of a SHA-1):
+   * publish it as the `artwork` state of a player (publishNowPlaying does it
+   * from `artwork_url`) and as the `artwork_key` of your MediaItems. The URL
+   * is recorded so the default artwork handler serves its bytes when Gladys
+   * asks (onMusicGetArtwork); the 1,000 most recent URLs are kept.
+   */
+  artworkKey(url: string): string;
+
+  /**
+   * The URLs recorded by `artworkKey`, by artwork key (the 1,000 most recent
+   * are kept): what a custom `onMusicGetArtwork` handler reads to find the
+   * source URL of a key.
+   */
+  readonly artworkUrls: ReadonlyMap<string, string>;
+
+  /**
+   * Publish what a music player is playing: the now-playing states of its
+   * `music` features, diffed against the last snapshot published for that
+   * device and sent as ONE batch of the changed values. An absent key is
+   * UNCHANGED (clearing a text is an explicit `''`, `artwork_url: null` an
+   * empty artwork); texts are truncated at 200 characters like the core
+   * does, `artwork_url` becomes its key through `artworkKey`. Call it on the
+   * player's events, never on a timer: the position is republished only when
+   * the playback state or the title changes, or when it deviates from the
+   * extrapolated one by more than 3 s (a seek). Feature ids default to
+   * `` `${deviceExternalId}:${type}` ``. Resolves `{ success, count }`,
+   * `count` the states actually published (0: no request sent). Validated
+   * before any request.
+   */
+  publishNowPlaying(
+    deviceExternalId: string,
+    nowPlaying: NowPlaying,
+    options?: PublishNowPlayingOptions,
+  ): Promise<PublishNowPlayingResponse>;
 
   /**
    * Publish the per-device transport status ('local' | 'cloud' |
@@ -2504,9 +2829,10 @@ export declare class GladysIntegration extends EventEmitter {
 
   /**
    * Handler called when the Gladys scheduler asks to poll a device
-   * (auto-acked). Only the devices published with `should_poll: true` and a
-   * `poll_frequency` in MILLISECONDS among DEVICE_POLL_FREQUENCIES (1 s to
-   * 1 min) are scheduled.
+   * (auto-acked). Only the devices published with a `poll_frequency` in
+   * MILLISECONDS among DEVICE_POLL_FREQUENCIES (1 s to 1 min) are scheduled
+   * — the core sets `should_poll: true` on them unless the integration
+   * published `should_poll: false` explicitly.
    */
   onPoll(callback: (device: Device) => void | Promise<void>): void;
 
@@ -2768,6 +3094,96 @@ export declare class GladysIntegration extends EventEmitter {
    * changed entry: this is for the cases it does not cover.
    */
   requestEnergyRecalculation(): void;
+
+  /**
+   * Handler of the chat completion requests of an AI provider integration
+   * (manifest `type: "ai"`, auto-acked): the integration is the AI provider
+   * an administrator selected in place of Gladys Plus, and EVERY AI request
+   * reaches it (chat loop, intent router, scene `ai.ask`, weekly digest).
+   * Receives an OpenAI-compatible chat completion request (`model` stripped;
+   * `purpose` and `categories` as hints), resolves an OpenAI-compatible
+   * completion `{ choices: [{ message: { content, tool_calls? } }] }` — acked
+   * back as `data`, awaited under 120 s (20 s for `intent-classification`),
+   * bounded by the core before it drives the tool-calling loop with the
+   * user's authority. A value without an object `choices[0].message` is acked
+   * as a failure; throwing acks a failure too (the named "provider
+   * unavailable" reply, never a fallback to Gladys Plus). The SDK carries no
+   * OpenAI client: bring your own.
+   */
+  onAiChat(callback: (request: AiChatRequest) => AiChatCompletion | Promise<AiChatCompletion>): void;
+
+  /**
+   * Handler of the synthesis requests of a text-to-speech provider
+   * integration (manifest `type: "tts"`, auto-acked): the integration is the
+   * voice an administrator selected in place of Gladys Plus. Receives the
+   * `text` (≤ 2,000 characters, capped by the core) and the requesting user's
+   * `language` (null when unknown); resolve the audio as a
+   * `<content type>;base64,<payload>` string (`audio/mpeg`, `audio/wav`,
+   * `audio/ogg` or `audio/aac`, ≤ 5 MB decoded), acked back as `data.audio`
+   * and awaited under 30 s. The SDK checks the shape, the content type, the
+   * base64 and the size before the ack; throwing acks a failure (the scene
+   * action fails visibly, the voice assistant falls back to text).
+   */
+  onTtsSynthesize(callback: (text: string, language: string | null) => string | Promise<string>): void;
+
+  /**
+   * Handler of the catalog of the integration's music players (manifest
+   * `music.browse: true`, auto-acked): `parentId` null is the root (your
+   * entry points as `folder`s), else the `id` of a browsable item; resolve
+   * `{ items, total? }` of MediaItems, acked back as `data` (awaited under
+   * 10 s), bounded by the core (≤ 100 items, invalid ones dropped).
+   */
+  onMusicBrowse(
+    callback: (device: Device, options: MusicBrowseOptions) => MusicBrowseResult | Promise<MusicBrowseResult>,
+  ): void;
+
+  /**
+   * Handler of the search of the integration's music players (manifest
+   * `music.search: true`, auto-acked): resolve `{ items }` of MediaItems
+   * matching `query` (filtered by `type` when not null), acked back as `data`
+   * (awaited under 10 s).
+   */
+  onMusicSearch(
+    callback: (device: Device, options: MusicSearchOptions) => MusicSearchResult | Promise<MusicSearchResult>,
+  ): void;
+
+  /**
+   * Handler of a play command on one of the integration's music players
+   * (auto-acked, awaited under 10 s): start `media` (an item of your own
+   * catalog) in `mode` — `replace`, or `next`/`append` when the manifest
+   * declares `music.append`. Resolve once the player accepted it; the new
+   * states follow through publishNowPlaying.
+   */
+  onMusicPlay(callback: (device: Device, media: MusicMedia, mode: MusicPlayMode) => void | Promise<void>): void;
+
+  /**
+   * Handler of the queue of the integration's music players (manifest
+   * `music.queue: true`, auto-acked): resolve `{ items, currentIndex, total }`
+   * — the requested page, `currentIndex` (null when nothing plays) and
+   * `total` describing the FULL queue — acked back as `data` (awaited under
+   * 10 s).
+   */
+  onMusicQueueGet(
+    callback: (device: Device, options: MusicQueueOptions) => MusicQueueResult | Promise<MusicQueueResult>,
+  ): void;
+
+  /**
+   * Handler of a jump in the queue of one of the integration's music players
+   * (manifest `music.queue: true`, auto-acked, awaited under 10 s): play the
+   * item at `index` of the full queue.
+   */
+  onMusicQueuePlay(callback: (device: Device, index: number) => void | Promise<void>): void;
+
+  /**
+   * Handler of the artwork bytes of the integration's music players
+   * (auto-acked): resolve the RAW base64 (no `data:` prefix) of the image
+   * behind `key` — a PNG, JPEG or WebP of at most 300 KB decoded and
+   * 4096 × 4096 px, refused otherwise by the core (which never recompresses)
+   * and cached one hour by key. WITHOUT a registered handler the SDK fetches
+   * the URL recorded by `artworkKey` and returns its bytes as served:
+   * register one only when a resize step is needed. Awaited under 15 s.
+   */
+  onMusicGetArtwork(callback: (key: string) => string | Promise<string>): void;
 
   on(event: 'connected' | 'disconnected', listener: () => void): this;
   once(event: 'connected' | 'disconnected', listener: () => void): this;

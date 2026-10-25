@@ -719,6 +719,17 @@ describe('createFakeGladys(options?)', () => {
       assert.equal((await gladys.publishDiscoveredDevices([device])).count, 1);
     });
 
+    it('should reject a should_poll that is not a boolean, like Gladys', async () => {
+      const gladys = createFakeGladys();
+      await rejectsWith400(
+        gladys.publishDiscoveredDevices([sensor({ should_poll: 'true' })]),
+        /devices\[0\]\.should_poll: must be a boolean/,
+      );
+      // poll_frequency alone is enough: the core sets should_poll itself
+      assert.equal((await gladys.publishDiscoveredDevices([sensor({ should_poll: undefined })])).count, 1);
+      assert.equal((await gladys.publishDiscoveredDevices([sensor({ should_poll: false })])).count, 1);
+    });
+
     it('should reject a poll frequency in seconds, like Gladys', async () => {
       const gladys = createFakeGladys();
       await rejectsWith400(
@@ -1057,6 +1068,113 @@ describe('createFakeGladys(options?)', () => {
         await gladys.fake.energyCurrent({ contract: { id: 'c1' }, cumulative: { day: 1 }, max_power_kw: 2 }),
         { success: true, data: { price: 0.2, label: 'peak 2' } },
       );
+    });
+
+    it('should run onAiChat and onTtsSynthesize', async () => {
+      const gladys = createFakeGladys();
+      const requests = [];
+      const completion = { choices: [{ message: { role: 'assistant', content: 'Light turned on' } }] };
+      gladys.onAiChat(async (request) => {
+        requests.push(request);
+        return completion;
+      });
+      const spoken = [];
+      gladys.onTtsSynthesize(async (text, language) => {
+        spoken.push([text, language]);
+        return 'audio/mpeg;base64,SUQz';
+      });
+      const request = { messages: [{ role: 'user', content: 'Turn on the light' }], purpose: 'chat' };
+      assert.deepEqual(await gladys.fake.aiChat(request), { success: true, data: completion });
+      assert.deepEqual(requests, [request]);
+      assert.deepEqual(await gladys.fake.ttsSynthesize('Bonjour', 'fr'), {
+        success: true,
+        data: { audio: 'audio/mpeg;base64,SUQz' },
+      });
+      assert.deepEqual(await gladys.fake.ttsSynthesize('Hello'), {
+        success: true,
+        data: { audio: 'audio/mpeg;base64,SUQz' },
+      });
+      assert.deepEqual(spoken, [
+        ['Bonjour', 'fr'],
+        ['Hello', null],
+      ]);
+    });
+
+    it('should run the music handlers with the core defaults, and the default artwork handler', async () => {
+      const gladys = createFakeGladys();
+      const player = { external_id: 'ext:test-integration:player:1', selector: 'player-1', params: [] };
+      const item = { id: 'spotify:track:1', type: 'track', title: 'Blue in Green', playable: true };
+      const calls = [];
+      gladys.onMusicBrowse(async (...args) => {
+        calls.push(['browse', ...args]);
+        return { items: [item], total: 1 };
+      });
+      gladys.onMusicSearch(async (...args) => {
+        calls.push(['search', ...args]);
+        return { items: [item] };
+      });
+      gladys.onMusicPlay(async (...args) => {
+        calls.push(['play', ...args]);
+      });
+      gladys.onMusicQueueGet(async (...args) => {
+        calls.push(['queue', ...args]);
+        return { items: [item], currentIndex: 0, total: 1 };
+      });
+      gladys.onMusicQueuePlay(async (...args) => {
+        calls.push(['jump', ...args]);
+      });
+      assert.deepEqual(await gladys.fake.musicBrowse(player), { success: true, data: { items: [item], total: 1 } });
+      assert.deepEqual(await gladys.fake.musicBrowse(player, { parentId: 'favorites', offset: 10, limit: 10 }), {
+        success: true,
+        data: { items: [item], total: 1 },
+      });
+      assert.deepEqual(await gladys.fake.musicSearch(player, { query: 'jazz' }), {
+        success: true,
+        data: { items: [item] },
+      });
+      await gladys.fake.musicSearch(player, { query: 'jazz', type: 'playlist', limit: 5 });
+      assert.deepEqual(await gladys.fake.musicPlay(player, { id: 'spotify:track:1', type: 'track' }), {
+        success: true,
+      });
+      await gladys.fake.musicPlay(player, { id: 'spotify:track:1', type: 'track' }, 'append');
+      assert.deepEqual(await gladys.fake.musicQueueGet(player), {
+        success: true,
+        data: { items: [item], current_index: 0, total: 1 },
+      });
+      await gladys.fake.musicQueueGet(player, { offset: 50, limit: 25 });
+      assert.deepEqual(await gladys.fake.musicQueuePlay(player, 7), { success: true });
+      assert.deepEqual(calls, [
+        ['browse', player, { parentId: null, offset: 0, limit: 50 }],
+        ['browse', player, { parentId: 'favorites', offset: 10, limit: 10 }],
+        ['search', player, { query: 'jazz', type: null, limit: 20 }],
+        ['search', player, { query: 'jazz', type: 'playlist', limit: 5 }],
+        ['play', player, { id: 'spotify:track:1', type: 'track' }, 'replace'],
+        ['play', player, { id: 'spotify:track:1', type: 'track' }, 'append'],
+        ['queue', player, { offset: 0, limit: 50 }],
+        ['queue', player, { offset: 50, limit: 25 }],
+        ['jump', player, 7],
+      ]);
+      // the default artwork handler answers for the keys of artworkKey; a
+      // registered one takes over
+      const unknown = await gladys.fake.musicGetArtwork('art-000000000000');
+      assert.equal(unknown.success, false);
+      assert.match(unknown.error, /unknown artwork key/);
+      gladys.onMusicGetArtwork(async (key) => `base64-of-${key}`);
+      assert.deepEqual(await gladys.fake.musicGetArtwork('art-000000000000'), {
+        success: true,
+        data: { image: 'base64-of-art-000000000000' },
+      });
+    });
+
+    it('should record the now-playing states like any state', async () => {
+      const gladys = createFakeGladys();
+      const player = 'ext:test-integration:player:1';
+      assert.deepEqual(await gladys.publishNowPlaying(player, { playback_state: 1, title: 'Blue in Green' }), {
+        success: true,
+        count: 2,
+      });
+      assert.equal(gladys.fake.lastState(`${player}:playback_state`), 1);
+      assert.equal(gladys.fake.lastState(`${player}:title`), 'Blue in Green');
     });
 
     it('should send any message type through send()', async () => {

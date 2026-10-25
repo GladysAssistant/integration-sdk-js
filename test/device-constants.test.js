@@ -108,6 +108,16 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_TYPES.HOME_OUTPUT_SENSOR.OFF_GRID_POWER, 'off-grid-power');
     assert.equal(DEVICE_FEATURE_TYPES.TEXT.SELECT, 'select');
     assert.equal(DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING, 'life-remaining');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.PLAYBACK_STATE, 'playback_state');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.TITLE, 'title');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.ARTIST, 'artist');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.ALBUM, 'album');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.ARTWORK, 'artwork');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.DURATION, 'duration');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.POSITION, 'position');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.SHUFFLE, 'shuffle');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.REPEAT, 'repeat');
+    assert.equal(DEVICE_FEATURE_TYPES.MUSIC.MUTE, 'mute');
   });
 
   it('should expose the canonical unit strings', () => {
