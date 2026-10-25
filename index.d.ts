@@ -2562,6 +2562,13 @@ export declare class GladysIntegration extends EventEmitter {
   artworkKey(url: string): string;
 
   /**
+   * The URLs recorded by `artworkKey`, by artwork key (the 1,000 most recent
+   * are kept): what a custom `onMusicGetArtwork` handler reads to find the
+   * source URL of a key.
+   */
+  readonly artworkUrls: ReadonlyMap<string, string>;
+
+  /**
    * Publish what a music player is playing: the now-playing states of its
    * `music` features, diffed against the last snapshot published for that
    * device and sent as ONE batch of the changed values. An absent key is

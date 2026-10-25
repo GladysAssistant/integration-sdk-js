@@ -669,7 +669,10 @@ const main = async (): Promise<void> => {
   gladys.onMusicQueuePlay(async (device: Device, index: number) => {
     void [device, index];
   });
-  gladys.onMusicGetArtwork(async (artwork: string): Promise<string> => `base64-of-${artwork}`);
+  gladys.onMusicGetArtwork(async (artwork: string): Promise<string> => {
+    const url: string | undefined = gladys.artworkUrls.get(artwork);
+    return `base64-of-${url}`;
+  });
   void [completionIssues, publishedCount, pureKey, itemIssues];
 
   await gladys.disconnect();
