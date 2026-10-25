@@ -2163,7 +2163,8 @@ export declare const DEVICE_FEATURE_UNITS: {
 
 /**
  * The only values a device `poll_frequency` accepts, in MILLISECONDS (mirror
- * of server/utils/constants.js). The device must also carry `should_poll: true`.
+ * of server/utils/constants.js). A discovered device carrying one is polled
+ * unless it says `should_poll: false`.
  */
 export declare const DEVICE_POLL_FREQUENCIES: {
   readonly EVERY_MINUTES: 60000;
@@ -2821,9 +2822,10 @@ export declare class GladysIntegration extends EventEmitter {
 
   /**
    * Handler called when the Gladys scheduler asks to poll a device
-   * (auto-acked). Only the devices published with `should_poll: true` and a
-   * `poll_frequency` in MILLISECONDS among DEVICE_POLL_FREQUENCIES (1 s to
-   * 1 min) are scheduled.
+   * (auto-acked). Only the devices published with a `poll_frequency` in
+   * MILLISECONDS among DEVICE_POLL_FREQUENCIES (1 s to 1 min) are scheduled
+   * — the core sets `should_poll: true` on them unless the integration
+   * published `should_poll: false` explicitly.
    */
   onPoll(callback: (device: Device) => void | Promise<void>): void;
 
