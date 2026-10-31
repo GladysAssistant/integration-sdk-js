@@ -1558,6 +1558,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ENERGY_SENSOR: 'energy-sensor';
   readonly ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor';
   readonly FAN: 'fan';
+  readonly FLOW_SENSOR: 'flow-sensor';
   readonly GRID_CARBON_SENSOR: 'grid-carbon-sensor';
   readonly GRID_SENSOR: 'grid-sensor';
   readonly HEATER: 'heater';
@@ -1729,6 +1730,9 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly AIRFLOW_DIRECTION: 'airflow-direction';
     readonly ROCK_SETTING: 'rock-setting';
     readonly WIND_SETTING: 'wind-setting';
+  };
+  readonly FLOW_SENSOR: {
+    readonly DECIMAL: 'decimal';
   };
   readonly HEATER: {
     readonly PILOT_WIRE_MODE: 'pilot-wire-mode';
