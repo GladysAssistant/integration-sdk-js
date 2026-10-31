@@ -2111,6 +2111,7 @@ export declare const DEVICE_FEATURE_UNITS: {
   readonly MILLILITER: 'milliliter';
   readonly CUBIC_METER: 'cubicmeter';
   readonly CUBIC_METER_PER_HOUR: 'cubic-meter-per-hour';
+  readonly CUBIC_METER_PER_SECOND: 'cubic-meter-per-second';
   readonly EURO: 'euro';
   readonly DOLLAR: 'dollar';
   readonly BITCOIN: 'bitcoin';

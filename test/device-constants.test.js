@@ -126,6 +126,7 @@ describe('device constants', () => {
     assert.equal(DEVICE_FEATURE_UNITS.PERCENT, 'percent');
     assert.equal(DEVICE_FEATURE_UNITS.WATT, 'watt');
     assert.equal(DEVICE_FEATURE_UNITS.CUBIC_METER_PER_HOUR, 'cubic-meter-per-hour');
+    assert.equal(DEVICE_FEATURE_UNITS.CUBIC_METER_PER_SECOND, 'cubic-meter-per-second');
     assert.equal(DEVICE_FEATURE_UNITS.GRAM_CO2_EQ_PER_KILOWATT_HOUR, 'gram-co2eq-per-kilowatt-hour');
   });
 
