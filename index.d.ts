@@ -1558,6 +1558,7 @@ export declare const DEVICE_FEATURE_CATEGORIES: {
   readonly ENERGY_SENSOR: 'energy-sensor';
   readonly ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor';
   readonly FAN: 'fan';
+  readonly FLOW_SENSOR: 'flow-sensor';
   readonly GRID_CARBON_SENSOR: 'grid-carbon-sensor';
   readonly GRID_SENSOR: 'grid-sensor';
   readonly HEATER: 'heater';
@@ -1729,6 +1730,9 @@ export declare const DEVICE_FEATURE_TYPES: {
     readonly AIRFLOW_DIRECTION: 'airflow-direction';
     readonly ROCK_SETTING: 'rock-setting';
     readonly WIND_SETTING: 'wind-setting';
+  };
+  readonly FLOW_SENSOR: {
+    readonly DECIMAL: 'decimal';
   };
   readonly HEATER: {
     readonly PILOT_WIRE_MODE: 'pilot-wire-mode';
@@ -2111,6 +2115,7 @@ export declare const DEVICE_FEATURE_UNITS: {
   readonly MILLILITER: 'milliliter';
   readonly CUBIC_METER: 'cubicmeter';
   readonly CUBIC_METER_PER_HOUR: 'cubic-meter-per-hour';
+  readonly CUBIC_METER_PER_SECOND: 'cubic-meter-per-second';
   readonly EURO: 'euro';
   readonly DOLLAR: 'dollar';
   readonly BITCOIN: 'bitcoin';
