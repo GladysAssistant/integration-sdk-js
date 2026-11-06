@@ -339,6 +339,49 @@ For the long step-by-step (screenshots…), the right medium stays the mandatory
 (`docs/en.md` + `docs/fr.md`): the Configuration screen now shows a permanent **"Documentation"** link to it
 (re-hosted, user language with `en` fallback) — it is when configuring that the user needs it most.
 
+### Conditional fields: `visible_if`
+
+A form often depends on one choice — the Tasmota case: "my MQTT broker", "a broker deployed by the integration" or
+"HTTP only", each with its own fields. Any field of any form (`config_schema`, `contact_schema`, `account_schema`,
+action `fields`, widget `settings`, scene trigger / action `fields`, the form of a widget button), `section`
+included, may declare a display condition on an **earlier** field of the same list:
+
+```json
+"config_schema": [
+  {
+    "key": "mqtt_mode",
+    "type": "select",
+    "label": { "en": "Connection mode" },
+    "default": "external",
+    "options": [
+      { "value": "external", "label": { "en": "My MQTT broker" } },
+      { "value": "disabled", "label": { "en": "HTTP only" } }
+    ]
+  },
+  {
+    "key": "mqtt_url",
+    "type": "string",
+    "label": { "en": "Broker URL" },
+    "required": true,
+    "visible_if": { "field": "mqtt_mode", "in": ["external"] }
+  }
+]
+```
+
+- the field is shown — and only then **required** — when the referenced field holds one of the values of `in`
+  (any of them for a `multi_select`; its `default` stands in for an empty value) **and is itself visible**, so a
+  chain of conditions hides a whole branch at once;
+- the referenced field is a `boolean`, or a `select` / `multi_select` with static `options` (a `source` is only known
+  at runtime), every value of `in` is one of its values: anything else rejects the manifest (indexer and server);
+- a hidden field of the **configuration** keeps its stored value (switching back loses nothing) and `gladys.config`
+  still holds every key: your code stays the judge of which values its mode uses;
+- a hidden field of an **action**, a **scene action**, a **widget setting** or a **widget button form** is neither
+  validated, nor required, nor relayed: it never appears in `fields`, `settings` or `values`; a hidden **scene
+  trigger filter** matches everything;
+- requires `"gladys_version": ">=5.4.0"` at minimum (older cores reject the unknown field key; the indexer enforces
+  the range). In a widget button form, the dev mode reports a malformed condition, which makes the core drop the
+  button.
+
 ### OAuth2 cloud services
 
 For cloud services that need a browser authorization (Netatmo-style), declare a field of type `oauth2` in the
