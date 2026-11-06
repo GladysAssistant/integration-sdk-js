@@ -302,7 +302,8 @@ export interface SsdpScanResult {
  * validated by the core, the declared `default` of every field the user left
  * empty applied. A `source: "devices"` select carries the chosen device
  * external_id, a `source: "houses"` one the chosen house selector. `section`
- * fields (presentational intro blocks) store no value and never appear here.
+ * fields (presentational intro blocks) store no value and never appear here,
+ * nor do the fields hidden by their `visible_if` condition (Gladys 5.4.0+).
  */
 export type ActionFields = Record<string, unknown>;
 
@@ -954,7 +955,8 @@ export type SceneEventData = Record<string, string | number | boolean | null>;
  * actions"): scene variables substituted, defaults applied, validated by the
  * core against the declaration. A `source: "devices"` field carries the
  * chosen device external_id, a `source: "houses"` field the chosen house
- * selector. `section` fields store no value and never appear here.
+ * selector. `section` fields store no value and never appear here, nor do
+ * the fields hidden by their `visible_if` condition (Gladys 5.4.0+).
  */
 export type SceneActionFields = Record<string, unknown>;
 
@@ -1185,6 +1187,27 @@ export interface WidgetActionField {
   options?: WidgetActionFieldOption[];
   /** `select` fields only. */
   display?: 'dropdown' | 'radio';
+  /**
+   * Display condition on an EARLIER field of the action (a `boolean` or a
+   * `select`): the field is shown, and only then required, validated and
+   * relayed in the values, when that field holds one of the listed values.
+   * Requires Gladys 5.4.0 or later (an older core drops the button).
+   */
+  visible_if?: VisibleIf;
+}
+
+/**
+ * Display condition of a form field (contract C.1, `visible_if`), the same
+ * in the manifest forms (`config_schema`, `contact_schema`, `account_schema`,
+ * action `fields`, widget `settings`, scene trigger / action `fields`) and in
+ * a widget action form: the field is shown — and only then required,
+ * validated and relayed — when the field `field`, declared EARLIER in the
+ * same list (a `boolean`, or a `select` / `multi_select` with static
+ * `options`), holds one of the values of `in` and is itself visible.
+ */
+export interface VisibleIf {
+  field: string;
+  in: Array<string | boolean>;
 }
 
 /**
@@ -1209,7 +1232,8 @@ export interface WidgetButtonAction {
  * "dashboard widgets", section 7): validated by the core against the fields
  * of the action found in the content (unknown key, invalid value, string over
  * 1000 characters or missing required field → refused before any relay),
- * the declared `default` of every absent field applied. A user EVENT (a
+ * the declared `default` of every absent field applied, the fields hidden by
+ * their `visible_if` condition left out. A user EVENT (a
  * delivery happened, at this price), never a write to the configuration.
  */
 export type WidgetActionValues = Record<string, unknown>;

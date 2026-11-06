@@ -374,6 +374,82 @@ describe('validateWidgetContent(content) — dev-mode mirror of the core normali
     assert.deepEqual(issues, []);
   });
 
+  it('should accept a visible_if condition on an earlier boolean or select of the action', () => {
+    const quality = {
+      key: 'quality',
+      type: 'select',
+      label: { en: 'Quality' },
+      options: [
+        { value: 'a1', label: { en: 'A1' } },
+        { value: 'a2', label: { en: 'A2' } },
+      ],
+    };
+    const paid = { key: 'paid', type: 'boolean', label: { en: 'Paid' } };
+    const issues = validateWidgetContent({
+      components: [
+        {
+          type: 'button',
+          label: 'Delivered',
+          action: {
+            key: 'delivery',
+            fields: [
+              quality,
+              { key: 'grade', type: 'string', label: { en: 'Grade' }, visible_if: { field: 'quality', in: ['a2'] } },
+              paid,
+              { key: 'price', type: 'number', label: { en: 'Price' }, visible_if: { field: 'paid', in: [true] } },
+            ],
+          },
+        },
+      ],
+    });
+    assert.deepEqual(issues, []);
+  });
+
+  it('should drop a button whose visible_if condition the core refuses', () => {
+    const paid = { key: 'paid', type: 'boolean', label: { en: 'Paid' } };
+    const note = { key: 'note', type: 'string', label: { en: 'Note' } };
+    const quality = {
+      key: 'quality',
+      type: 'select',
+      label: { en: 'Q' },
+      options: [{ value: 'a1', label: { en: 'A1' } }],
+    };
+    const conditional = (key, visibleIf) => ({ key, type: 'string', label: { en: key }, visible_if: visibleIf });
+    const actionButton = (actionKey, fields) => ({ type: 'button', label: 'B', action: { key: actionKey, fields } });
+    const issues = validateWidgetContent({
+      components: [
+        actionButton('aa', [paid, conditional('x', 'paid'), conditional('y', { field: 'paid', in: [true], not: 1 })]),
+        actionButton('bb', [
+          conditional('x', { field: 'paid', in: [true] }),
+          paid,
+          note,
+          conditional('y', { field: 'note', in: ['a'] }),
+        ]),
+        actionButton('cc', [
+          paid,
+          conditional('x', { field: 'paid', in: [] }),
+          conditional('y', { field: 'paid', in: ['true'] }),
+        ]),
+        actionButton('dd', [quality, conditional('x', { field: 'quality', in: ['a1', 'zz'] })]),
+        actionButton('ee', [{ ...quality, options: 'a1' }, conditional('x', { field: 'quality', in: ['a1'] })]),
+        actionButton('ff', [{ ...quality, options: [null] }, conditional('x', { field: 'quality', in: ['a1'] })]),
+      ],
+    });
+    assert.deepEqual(issues, [
+      'components[0].action.fields[1].visible_if: must be an object { field, in }',
+      'components[0].action.fields[2].visible_if.not: unknown field',
+      'components[1].action.fields[0].visible_if.field: must be the key of an earlier field of the same list',
+      'components[1].action.fields[3].visible_if.field: "note" must be a boolean or a select',
+      'components[2].action.fields[1].visible_if.in: must be a non-empty list of values',
+      'components[2].action.fields[2].visible_if.in[0]: must be a value of "paid"',
+      'components[3].action.fields[1].visible_if.in[1]: must be a value of "quality"',
+      'components[4].action.fields[0].options: select fields must have a non-empty options list',
+      'components[4].action.fields[1].visible_if.in[0]: must be a value of "quality"',
+      'components[5].action.fields[0].options[0]: must be an object',
+      'components[5].action.fields[1].visible_if.in[0]: must be a value of "quality"',
+    ]);
+  });
+
   it('should report the texts of the action fields the core truncates', () => {
     const issues = validateWidgetContent({
       components: [

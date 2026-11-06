@@ -43,6 +43,7 @@ import {
   PublishEnergyCalendarResponse,
   PublishEnergyConsumptionResponse,
   WidgetActionField,
+  VisibleIf,
   WidgetActionValues,
   ContainerPortProtocol,
   createLogger,
@@ -425,10 +426,18 @@ const main = async (): Promise<void> => {
     options: [{ value: 'a1', label: { en: 'A1' } }],
     default: 'a1',
   };
+  // A field shown only for one quality (visible_if, Gladys 5.4.0+).
+  const gradeCondition: VisibleIf = { field: 'quality', in: ['a1'] };
+  const gradeField: WidgetActionField = {
+    key: 'grade',
+    type: 'string',
+    label: { en: 'Grade' },
+    visible_if: gradeCondition,
+  };
   const deliveryButton: WidgetButtonComponent = {
     type: 'button',
     label: { en: 'Pallet delivered' },
-    action: { key: 'delivery', fields: [bagsField, qualityField] },
+    action: { key: 'delivery', fields: [bagsField, qualityField, gradeField] },
   };
   gladys.onWidgetAction('pellets', async (actionKey: string, params, options) => {
     const values: WidgetActionValues | undefined = options.values;
