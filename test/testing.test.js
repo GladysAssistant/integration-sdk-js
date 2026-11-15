@@ -31,6 +31,9 @@ const sensor = (overrides = {}) => ({
       type: DEVICE_FEATURE_TYPES.SENSOR.DECIMAL,
       unit: DEVICE_FEATURE_UNITS.CELSIUS,
       read_only: true,
+      has_feedback: false,
+      min: -40,
+      max: 80,
     },
   ],
   ...overrides,
@@ -761,6 +764,19 @@ describe('createFakeGladys(options?)', () => {
         ],
         [[sensor({ features: [{ ...feature, type: 'float' }] })], /features\[0\]\.type: unknown type/],
         [[sensor({ features: [{ ...feature, unit: 'parsec' }] })], /features\[0\]\.unit: unknown unit/],
+        // the NOT NULL columns of t_device_feature: refused by "Add" on the Discovery screen otherwise
+        [[sensor({ features: [{ ...feature, name: '' }] })], /features\[0\]\.name: must be a non-empty string/],
+        [[sensor({ features: [{ ...feature, read_only: 1 }] })], /features\[0\]\.read_only: must be a boolean/],
+        [
+          [sensor({ features: [{ ...feature, has_feedback: undefined }] })],
+          /features\[0\]\.has_feedback: must be a boolean/,
+        ],
+        [
+          [sensor({ features: [{ ...feature, category: 'text', type: 'text', unit: undefined, min: undefined }] })],
+          /features\[0\]\.min: must be a number \(0 for a feature without a range\)/,
+        ],
+        [[sensor({ features: [{ ...feature, max: null }] })], /features\[0\]\.max: must be a number/],
+        [[sensor({ features: [{ ...feature, max: Infinity }] })], /features\[0\]\.max: must be a number/],
       ];
       for (const [devices, message] of cases) {
         await rejectsWith400(gladys.publishDiscoveredDevices(devices), message);

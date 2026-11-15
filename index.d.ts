@@ -28,7 +28,14 @@ export interface GladysIntegrationOptions {
   logger?: Logger;
 }
 
-/** A device feature, in the standard Gladys format. */
+/**
+ * A device feature, in the standard Gladys format. A PUBLISHED feature
+ * (publishDiscoveredDevices) must carry the columns Gladys stores as NOT
+ * NULL: `name`, `read_only`, `has_feedback`, `min` and `max` (`0` / `0` for a
+ * feature without a range, such as a `text` one) — Gladys 5.4.0+ refuses the
+ * publication otherwise, older releases refused the device when the user
+ * clicked "Add" (`t_device_feature.min cannot be null`).
+ */
 export interface DeviceFeature {
   name?: string;
   external_id: string;
