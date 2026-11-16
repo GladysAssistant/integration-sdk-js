@@ -47,6 +47,8 @@ const main = async (): Promise<void> => {
   const last: number | string | undefined = gladys.fake.lastState('ext:weather:station:1:temperature');
   const states: DeviceState[] = gladys.fake.states;
   const requests: FakeGladysRequest[] = gladys.fake.requests;
+  // The last published list is what publishDiscoveredDevices took: it can be published again as is.
+  await gladys.publishDiscoveredDevices(gladys.fake.discoveredDevices);
   const status: number = requests[0].status;
   const widgetAck: FakeGladysAck = await gladys.fake.widgetGet('forecast', { language: 'fr', units: 'us' });
   const webhookAck: FakeGladysAck | undefined = await gladys.fake.webhook('events', { body: '{}' }, { mode: 'sync' });

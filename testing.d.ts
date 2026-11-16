@@ -9,6 +9,7 @@ import {
   Device,
   DeviceFeature,
   DeviceState,
+  DiscoveredDevice,
   EnergyCalendarEntry,
   EnergyContract,
   EnergyCurrentRequest,
@@ -170,7 +171,7 @@ export interface FakeGladys {
   /** Every published state, in order. */
   readonly states: DeviceState[];
   /** The last published list of discovered devices. */
-  readonly discoveredDevices: Device[];
+  readonly discoveredDevices: DiscoveredDevice[];
   /** Every published connection status, in order. */
   readonly connectionStatuses: { connected: boolean; message?: Record<string, string> }[];
   /** The last published connection status, null if none. */
