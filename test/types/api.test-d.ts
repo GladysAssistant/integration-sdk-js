@@ -54,6 +54,7 @@ import {
   DEVICE_TRANSPORTS,
   DeviceExternalIds,
   DeviceFeature,
+  DiscoveredDevice,
   DeviceFeatureSupportedOption,
   DeviceTransport,
   DeviceTransportEntry,
@@ -71,6 +72,7 @@ import {
   MdnsScanResult,
   NetworkActiveScanOptions,
   OutgoingMessage,
+  PublishedDeviceFeature,
   parseMdnsTxt,
   PublishChangedStatesResponse,
   SceneActionFields,
@@ -143,6 +145,34 @@ const main = async (): Promise<void> => {
       },
     ]);
   });
+
+  // A published feature carries the columns Gladys stores as NOT NULL
+  // (0 / 0 for a feature without a range): a missing one fails to compile.
+  const track: PublishedDeviceFeature = {
+    name: 'Current track',
+    external_id: gladys.externalId('player:track'),
+    category: 'text',
+    type: 'text',
+    min: 0,
+    max: 0,
+    read_only: true,
+    has_feedback: false,
+  };
+  const discovered: DiscoveredDevice[] = [
+    { name: 'Player', external_id: gladys.externalId('player'), features: [track] },
+    { name: 'Bridge', external_id: gladys.externalId('bridge'), features: [] },
+  ];
+  await gladys.publishDiscoveredDevices(discovered);
+  await gladys.publishDiscoveredDevices([
+    {
+      name: 'Player',
+      external_id: gladys.externalId('player'),
+      features: [
+        // @ts-expect-error — min, max and has_feedback are missing
+        { name: 'Current track', external_id: gladys.externalId('player:track'), category: 'text', type: 'text' },
+      ],
+    },
+  ]);
 
   gladys.onSetValue(async (device: Device, feature: DeviceFeature, value: number | string) => {
     if (feature.type === DEVICE_FEATURE_TYPES.TEXT.SELECT) {

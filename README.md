@@ -1542,6 +1542,40 @@ the integration never provides the payload, so the endpoint is not a general UDP
 resolved call means the packet was **emitted**, not that the device actually woke up: poll the device to confirm
 (and keep the usual retry loop, Wake-on-LAN is fire-and-forget by nature).
 
+### Published features
+
+Every feature of a published device carries `name`, `read_only`, `has_feedback`, `min` and `max`. Gladys stores
+those columns as NOT NULL without a default, so it cannot create a device missing one: the publication is refused
+with a `400 BAD_REQUEST` by a core that checks it there, and the device is refused when the user clicks "Add" on
+the Discovery screen otherwise (`t_device_feature.min cannot be null`). A feature without a range, such as a `text`
+one, publishes `min: 0` and `max: 0`:
+
+```js
+await gladys.publishDiscoveredDevices([
+  {
+    name: 'Media player',
+    external_id: ids.device,
+    features: [
+      {
+        name: 'Current track',
+        external_id: ids.feature('track'),
+        category: DEVICE_FEATURE_CATEGORIES.TEXT,
+        type: DEVICE_FEATURE_TYPES.TEXT.TEXT,
+        min: 0,
+        max: 0,
+        read_only: true,
+        has_feedback: false,
+      },
+    ],
+  },
+]);
+```
+
+In TypeScript, `publishDiscoveredDevices` takes `DiscoveredDevice[]`: a `Device` with a `name` and a `features`
+array of `PublishedDeviceFeature` — a `DeviceFeature` whose five fields above are required — so a missing one fails
+to compile. A list typed `Device[]` no longer fits: type it `DiscoveredDevice[]`. The
+[fake Gladys](#testing-your-integration) refuses it at run time too.
+
 ### Polling devices
 
 Gladys polls a device — calls `onPoll` — when it was published with a `poll_frequency`: the core sets
@@ -1693,9 +1727,15 @@ test('publishes the temperature on poll', async () => {
   `energyRecalculations`; every host API request in `requests` (`{ method, path, query?, body, status }`) and
   every WebSocket message (acks, nudges) in `wsMessages`.
 - **The host API checks** that most often bite: the discovered devices (external_id prefix, known
-  category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`, a boolean `should_poll`) and the states (external_id prefix,
-  numeric `state` or string `text`, ISO `created_at`) are validated like Gladys does, and refused with the same
-  `400` `GladysApiError` — a rejected request stays in `requests` (`status: 400`) but not in the record above.
+  category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`, a boolean `should_poll`, and on every
+  feature a non-empty `name`, booleans `read_only` and `has_feedback`, finite numbers `min` and `max` — see
+  [Published features](#published-features)) and the states (external_id prefix, numeric `state` or string `text`,
+  ISO `created_at`) are validated like Gladys does, and refused with the same `400` `GladysApiError` — a rejected
+  request stays in `requests` (`status: 400`) but not in the record above. The feature fields are refused on
+  publication whatever the `status.gladys_version` the fake announces: a core that does not check them there only
+  refuses the device when the user clicks "Add", which no test of the integration can see. Upgrading from an SDK
+  whose fake accepted them, complete the fixtures that now get a `400` (`has_feedback: false`, `min: 0`, `max: 0`
+  on a feature that has no feedback and no range).
   The calendar surface behaves like the core too: `publishCalendars` upserts into `fake.calendars` for an enabled
   user only (404 otherwise; a new calendar starts `sync: true`, `shared: false`), `publishCalendarEvents` upserts,
   moves and prunes `fake.calendarEvents` (403 on a `sync: false` calendar, 404 on an unknown one — flip the toggles

@@ -31,6 +31,9 @@ const sensor = (overrides = {}) => ({
       type: DEVICE_FEATURE_TYPES.SENSOR.DECIMAL,
       unit: DEVICE_FEATURE_UNITS.CELSIUS,
       read_only: true,
+      has_feedback: false,
+      min: -40,
+      max: 80,
     },
   ],
   ...overrides,
@@ -719,6 +722,22 @@ describe('createFakeGladys(options?)', () => {
       assert.equal((await gladys.publishDiscoveredDevices([device])).count, 1);
     });
 
+    it('should accept a feature without a range publishing min 0 and max 0', async () => {
+      const gladys = createFakeGladys();
+      const text = {
+        name: 'Current track',
+        external_id: 'ext:test-integration:sensor:1:track',
+        category: DEVICE_FEATURE_CATEGORIES.TEXT,
+        type: DEVICE_FEATURE_TYPES.TEXT.TEXT,
+        read_only: true,
+        has_feedback: false,
+        min: 0,
+        max: 0,
+      };
+      assert.equal((await gladys.publishDiscoveredDevices([sensor({ features: [text] })])).count, 1);
+      assert.deepEqual(gladys.fake.discoveredDevices[0].features, [text]);
+    });
+
     it('should reject a should_poll that is not a boolean, like Gladys', async () => {
       const gladys = createFakeGladys();
       await rejectsWith400(
@@ -761,6 +780,29 @@ describe('createFakeGladys(options?)', () => {
         ],
         [[sensor({ features: [{ ...feature, type: 'float' }] })], /features\[0\]\.type: unknown type/],
         [[sensor({ features: [{ ...feature, unit: 'parsec' }] })], /features\[0\]\.unit: unknown unit/],
+        // the NOT NULL columns of t_device_feature: refused by "Add" on the Discovery screen otherwise
+        [[sensor({ features: [{ ...feature, name: '' }] })], /features\[0\]\.name: must be a non-empty string/],
+        [[sensor({ features: [{ ...feature, name: undefined }] })], /features\[0\]\.name: must be a non-empty string/],
+        [[sensor({ features: [{ ...feature, name: 12 }] })], /features\[0\]\.name: must be a non-empty string/],
+        [[sensor({ features: [{ ...feature, read_only: 1 }] })], /features\[0\]\.read_only: must be a boolean/],
+        [[sensor({ features: [{ ...feature, read_only: undefined }] })], /features\[0\]\.read_only: must be a boolean/],
+        [
+          [sensor({ features: [{ ...feature, has_feedback: 'false' }] })],
+          /features\[0\]\.has_feedback: must be a boolean/,
+        ],
+        [
+          [sensor({ features: [{ ...feature, has_feedback: undefined }] })],
+          /features\[0\]\.has_feedback: must be a boolean/,
+        ],
+        [
+          [sensor({ features: [{ ...feature, category: 'text', type: 'text', unit: undefined, min: undefined }] })],
+          /features\[0\]\.min: must be a number \(0 for a feature without a range\)/,
+        ],
+        [[sensor({ features: [{ ...feature, min: '0' }] })], /features\[0\]\.min: must be a number/],
+        [[sensor({ features: [{ ...feature, min: NaN }] })], /features\[0\]\.min: must be a number/],
+        [[sensor({ features: [{ ...feature, max: undefined }] })], /features\[0\]\.max: must be a number/],
+        [[sensor({ features: [{ ...feature, max: null }] })], /features\[0\]\.max: must be a number/],
+        [[sensor({ features: [{ ...feature, max: Infinity }] })], /features\[0\]\.max: must be a number/],
       ];
       for (const [devices, message] of cases) {
         await rejectsWith400(gladys.publishDiscoveredDevices(devices), message);
