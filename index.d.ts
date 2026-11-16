@@ -29,12 +29,8 @@ export interface GladysIntegrationOptions {
 }
 
 /**
- * A device feature, in the standard Gladys format. A PUBLISHED feature
- * (publishDiscoveredDevices) must carry the columns Gladys stores as NOT
- * NULL: `name`, `read_only`, `has_feedback`, `min` and `max` (`0` / `0` for a
- * feature without a range, such as a `text` one) — Gladys 5.4.0+ refuses the
- * publication otherwise, older releases refused the device when the user
- * clicked "Add" (`t_device_feature.min cannot be null`).
+ * A device feature, in the standard Gladys format — as Gladys sends it. A
+ * feature the integration publishes is a `PublishedDeviceFeature`.
  */
 export interface DeviceFeature {
   name?: string;
@@ -112,6 +108,32 @@ export interface Device {
    */
   poll_frequency?: number;
   [key: string]: unknown;
+}
+
+/**
+ * A feature published with `publishDiscoveredDevices`: a `DeviceFeature`
+ * carrying the columns Gladys stores as NOT NULL without a default — `name`,
+ * `read_only`, `has_feedback`, `min` and `max` (`0` / `0` for a feature
+ * without a range, such as a `text` one). Gladys cannot create a device
+ * missing one: the publication is refused with a 400 by a core that checks
+ * it there, the device is refused when the user clicks "Add" on the
+ * Discovery screen otherwise (`t_device_feature.min cannot be null`).
+ */
+export interface PublishedDeviceFeature extends DeviceFeature {
+  name: string;
+  min: number;
+  max: number;
+  read_only: boolean;
+  has_feedback: boolean;
+}
+
+/**
+ * A device published with `publishDiscoveredDevices`: a named `Device` whose
+ * features (an array, possibly empty) are `PublishedDeviceFeature`.
+ */
+export interface DiscoveredDevice extends Device {
+  name: string;
+  features: PublishedDeviceFeature[];
 }
 
 /** One state of the POST /state batch (contract C.3). */
@@ -2500,8 +2522,12 @@ export declare class GladysIntegration extends EventEmitter {
    */
   handleShutdown(cleanup?: (signal: 'SIGTERM' | 'SIGINT') => void | Promise<void>): void;
 
-  /** Publish the complete list of discovered devices (replaces the previous one). */
-  publishDiscoveredDevices(devices: Device[]): Promise<PublishDiscoveredDevicesResponse>;
+  /**
+   * Publish the complete list of discovered devices (replaces the previous
+   * one). Every feature carries `name`, `read_only`, `has_feedback`, `min`
+   * and `max` (see `PublishedDeviceFeature`).
+   */
+  publishDiscoveredDevices(devices: DiscoveredDevice[]): Promise<PublishDiscoveredDevicesResponse>;
 
   /** Fetch the devices created by the user; also refreshes `devices`. */
   getDevices(): Promise<Device[]>;
