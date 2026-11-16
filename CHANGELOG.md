@@ -1,3 +1,29 @@
+## [0.16.1](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.16.0...v0.16.1) (2026-11-16)
+
+### ⚠ BREAKING CHANGES
+
+* **testing:** the fake Gladys refuses (400) a published feature without
+a non-empty name, boolean read_only and has_feedback, or finite min and
+max, and publishDiscoveredDevices is typed DiscoveredDevice[] instead of
+Device[]. Complete the published features (has_feedback: false, min: 0,
+max: 0 on a feature with no feedback and no range) and type the published
+lists DiscoveredDevice[].
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MNjB37K4UXaBNY9yfkd9Te
+
+* fix(testing): type the fake's published list as DiscoveredDevice[]
+
+fake.discoveredDevices holds what publishDiscoveredDevices accepted: typed
+Device[], it could not be published again once the method took
+DiscoveredDevice[].
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01MNjB37K4UXaBNY9yfkd9Te
+
+### Bug Fixes
+
+* **testing:** refuse a published feature Gladys cannot store, and type it ([#50](https://github.com/GladysAssistant/integration-sdk-js/issues/50)) ([99fcd73](https://github.com/GladysAssistant/integration-sdk-js/commit/99fcd73537f4ffb1d14e5293f07ce4bc14a55319))
 ## [0.16.0](https://github.com/GladysAssistant/integration-sdk-js/compare/v0.15.0...v0.16.0) (2026-10-25)
 
 ### Features
