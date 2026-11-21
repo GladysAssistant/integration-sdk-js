@@ -34,6 +34,8 @@ class FakeGladysServer {
     this.forcedResponses = new Map();
     // Set of "METHOD path" routes that never answer (timeout testing).
     this.hangingRoutes = new Set();
+    // Map of "METHOD path" -> delay in ms before answering (slow routes).
+    this.delayedRoutes = new Map();
     // Connected & authenticated integration sockets.
     this.sockets = [];
     // Messages received on the WebSocket, as { type, payload }.
@@ -126,9 +128,18 @@ class FakeGladysServer {
       const query = Object.fromEntries(new URLSearchParams(search || ''));
       const body = rawBody ? JSON.parse(rawBody) : undefined;
       this.requests.push({ method: req.method, path, query, body, authorization: req.headers.authorization });
+      // A delayed route answers late (a slow peer behind it, such as a local speech synthesis).
+      const delayMs = this.delayedRoutes.get(`${req.method} ${path}`) || 0;
       const respond = (status, responseBody, contentType = 'application/json') => {
-        res.writeHead(status, { 'content-type': contentType });
-        res.end(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
+        const send = () => {
+          res.writeHead(status, { 'content-type': contentType });
+          res.end(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
+        };
+        if (delayMs > 0) {
+          setTimeout(send, delayMs);
+        } else {
+          send();
+        }
       };
       if (this.hangingRoutes.has(`${req.method} ${path}`)) {
         // Never answer: the client is expected to abort on its own timeout.
@@ -198,6 +209,9 @@ class FakeGladysServer {
           break;
         case 'POST /network/wake':
           respond(200, { success: true });
+          break;
+        case 'POST /tts/speech_url':
+          respond(200, { url: 'http://192.168.1.10:80/api/v1/tts/audio/0123abcd.mp3' });
           break;
         case 'POST /message':
           respond(200, { success: true });

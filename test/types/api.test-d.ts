@@ -83,6 +83,7 @@ import {
   validateWidgetContent,
   validateWidgetImage,
   WakeOnLanOptions,
+  SpeechUrlOptions,
   WEATHER_ALERT_SEVERITIES,
   WEATHER_ALERT_TYPES,
   WEATHER_CONDITIONS,
@@ -372,6 +373,15 @@ const main = async (): Promise<void> => {
   await gladys.wakeOnLan('64:e4:d5:b4:12:66');
   const wakeOptions: WakeOnLanOptions = { address: '192.168.1.255', port: 9, sourcePort: 0 };
   await gladys.wakeOnLan('64E4D5B41266', wakeOptions);
+
+  // A clip of the instance's voice, for the integration's own player.
+  const speechUrl: string = await gladys.getSpeechUrl('Bonjour !');
+  const speechOptions: SpeechUrlOptions = { language: 'fr' };
+  await gladys.getSpeechUrl('Bonjour !', speechOptions);
+  await gladys.getSpeechUrl('Hello', { language: null });
+  // @ts-expect-error — the language is a tag, not a number
+  await gladys.getSpeechUrl('Hello', { language: 33 });
+  void speechUrl;
 
   // Houses (location: true in the manifest): coordinates may be null.
   const houses: House[] = await gladys.getHouses();

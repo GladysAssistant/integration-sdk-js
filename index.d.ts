@@ -1384,6 +1384,12 @@ export interface AiChatCompletion {
 
 // TTS providers (manifest `type: "tts"`, contract capabilities/tts-type.md).
 
+/** Options of getSpeechUrl. */
+export interface SpeechUrlOptions {
+  /** Language of the text, a tag such as `fr` or `en-US`. Default: the language of the instance's first administrator. */
+  language?: string | null;
+}
+
 /** Content types of a synthesized clip, mapped to the extension of the URL the core serves. */
 export type TtsAudioContentType = 'audio/mpeg' | 'audio/wav' | 'audio/ogg' | 'audio/aac';
 
@@ -2849,6 +2855,20 @@ export declare class GladysIntegration extends EventEmitter {
    * emitted, not that the device actually woke up.
    */
   wakeOnLan(mac: string, options?: WakeOnLanOptions): Promise<SuccessResponse>;
+
+  /**
+   * Get a clip of the instance's voice (the TTS provider the admin selected,
+   * Gladys Plus or a local engine) for a text, as a URL the integration's own
+   * player fetches: a LAN `http://` URL to a clip kept 10 minutes with an
+   * integration provider, a signed `https://` URL with Gladys Plus — hand it
+   * to the player right away. Every integration type may call it; 10
+   * requests per minute per integration (429 beyond). Any failure of the
+   * voice (no provider running, Gladys Plus not subscribed or over quota)
+   * rejects with a 503 `GladysApiError` (message `TTS_UNAVAILABLE`). The text
+   * (non-blank, ≤ 2,000 characters) and the language are checked locally
+   * first; the call waits up to 35 s (a local synthesis).
+   */
+  getSpeechUrl(text: string, options?: SpeechUrlOptions): Promise<string>;
 
   /**
    * Handler called when the user actions a device feature (auto-acked).

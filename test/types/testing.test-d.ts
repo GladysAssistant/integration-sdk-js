@@ -37,6 +37,7 @@ const main = async (): Promise<void> => {
     energyCalendars: { tempo: [{ starts_at: '2026-01-12T05:00:00.000Z', value: 'red' }] },
     energyContracts: [],
     energyConsumption: { 'ext:weather:meter:daily': [{ created_at: '2026-01-12T00:00:00.000Z', kwh: 18.4 }] },
+    ttsAvailable: true,
   });
   registerHandlers(gladys);
   await gladys.connect();
@@ -82,6 +83,9 @@ const main = async (): Promise<void> => {
   void [priceAck, deleted, recalculations, query];
   const chatAck: FakeGladysAck = await gladys.fake.aiChat({ messages: [{ role: 'user', content: 'Hi' }] });
   const ttsAck: FakeGladysAck = await gladys.fake.ttsSynthesize('Bonjour', 'fr');
+  const speeches: { text: string; language?: string }[] = gladys.fake.speeches;
+  gladys.fake.ttsAvailable = false;
+  void speeches;
   const player = { external_id: 'ext:weather:player:1' };
   const browseAck: FakeGladysAck = await gladys.fake.musicBrowse(player, { parentId: 'favorites', limit: 10 });
   const searchAck: FakeGladysAck = await gladys.fake.musicSearch(player, { query: 'jazz', type: 'playlist' });

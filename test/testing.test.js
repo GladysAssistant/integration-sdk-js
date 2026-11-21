@@ -174,6 +174,41 @@ describe('createFakeGladys(options?)', () => {
       assert.equal(gladys.fake.lastState('ext:test-integration:unknown'), undefined);
     });
 
+    it('should hand out a URL per spoken text and record the texts', async () => {
+      const gladys = createFakeGladys();
+      assert.equal(gladys.fake.ttsAvailable, true);
+      assert.equal(
+        await gladys.getSpeechUrl('Bonjour !', { language: 'fr' }),
+        'http://fake-gladys.invalid/api/v1/tts/audio/fake-1.mp3',
+      );
+      assert.equal(await gladys.getSpeechUrl('Hello'), 'http://fake-gladys.invalid/api/v1/tts/audio/fake-2.mp3');
+      assert.deepEqual(gladys.fake.speeches, [{ text: 'Bonjour !', language: 'fr' }, { text: 'Hello' }]);
+    });
+
+    it("should answer the core's 503 TTS_UNAVAILABLE when the voice cannot speak", async () => {
+      const gladys = createFakeGladys({ ttsAvailable: false });
+      await assert.rejects(gladys.getSpeechUrl('Bonjour !'), (error) => {
+        assert.ok(error instanceof GladysApiError);
+        assert.equal(error.status, 503);
+        assert.equal(error.code, 'SERVICE_UNAVAILABLE');
+        assert.equal(error.message, 'TTS_UNAVAILABLE');
+        return true;
+      });
+      // rejected requests are recorded with their status, never as a spoken text
+      assert.equal(gladys.fake.requests.at(-1).status, 503);
+      assert.deepEqual(gladys.fake.speeches, []);
+      // the voice comes back: the first clip is numbered 1
+      gladys.fake.ttsAvailable = true;
+      assert.equal(await gladys.getSpeechUrl('Bonjour !'), 'http://fake-gladys.invalid/api/v1/tts/audio/fake-1.mp3');
+    });
+
+    it('should keep the local checks of getSpeechUrl, with no request recorded', async () => {
+      const gladys = createFakeGladys();
+      await assert.rejects(gladys.getSpeechUrl(''), /"text" must be a non-blank string/);
+      await assert.rejects(gladys.getSpeechUrl('Hi', { language: 'not a tag' }), /"language" must be a language tag/);
+      assert.deepEqual(gladys.fake.requests, []);
+    });
+
     it('should keep the last published list of discovered devices', async () => {
       const gladys = createFakeGladys();
       assert.deepEqual(gladys.fake.discoveredDevices, []);

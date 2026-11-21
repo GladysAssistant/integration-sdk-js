@@ -148,6 +148,7 @@ All methods return Promises; host API errors are thrown as `GladysApiError { sta
 | `restartContainer(name)`                                     | Restarts a sub-container, e.g. after rewriting its config through `/data`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `scanNetwork(type, options?)`                                | On-demand mediated network scan of a capture declared in the manifest `network_discovery` field (`udp-broadcast` \| `udp-active-broadcast` \| `mdns` \| `ssdp`); returns the RAW results — parsing them is the integration's job (`parseMdnsTxt` turns the raw mDNS TXT entries into an object). `udp-active-broadcast` (query/response, TP-Link Kasa style) additionally takes `{ port, payload }`: the integration forges the request, the core broadcasts it and relays the raw unicast replies                                                                                                                                      |
 | `wakeOnLan(mac, options?)`                                   | Sends a standard Wake-on-LAN magic packet from the Gladys core network namespace (bridge containers cannot reach the LAN in broadcast). Requires `network_wake: true` in the manifest (403 otherwise); the core builds the fixed magic packet itself (never integration-provided bytes) and bounds the rate to 1 wake per 2 s per integration (429 beyond). Options: `{ address, port, sourcePort }`                                                                                                                                                                                                                                    |
+| `getSpeechUrl(text, options?)`                               | A clip of the instance's voice (the TTS provider the admin selected, Gladys Plus or a local engine) for a text, as a URL your own player fetches: a LAN `http://` URL kept 10 minutes with a local provider, a signed `https://` URL with Gladys Plus. Every integration type may call it; `text` non-blank, ≤ 2,000 characters, `{ language }` a tag such as `fr` (default: the first administrator's). Any failure of the voice rejects with a 503 `TTS_UNAVAILABLE`; 10 requests per minute (429 beyond); waits up to 35 s. See [Speaking with the instance's voice](#speaking-with-the-instances-voice)                             |
 
 ### Handlers
 
@@ -788,6 +789,45 @@ gladys.onTtsSynthesize(async (text, language) => {
 
 Declare `categories: ["assistants"]` in the manifest. Requires a Gladys with TTS-provider support (check the
 `gladys_version` range of your manifest).
+
+### Speaking with the instance's voice
+
+An integration that drives its own player — a speaking rabbit, a doorbell, a speaker it controls itself rather than
+through a `play_notification` feature — can speak with **the voice of the instance** instead of its device's
+built-in text-to-speech: the provider the administrator selected, Gladys Plus or a local engine served by a
+`type: "tts"` integration. Ask for a clip and hand its URL to the player:
+
+```js
+import { GladysApiError } from '@gladysassistant/integration-sdk';
+
+async function speak(text) {
+  try {
+    const url = await gladys.getSpeechUrl(text, { language: 'fr' });
+    await rabbit.play(url); // your player fetches the URL itself
+  } catch (e) {
+    if (!(e instanceof GladysApiError) || e.status !== 503) {
+      throw e;
+    }
+    await rabbit.say(text); // no voice available: the device's own text-to-speech
+  }
+}
+```
+
+- **Every integration type** may call it, nothing to declare in the manifest. **`text`**: non-blank, at most 2,000
+  characters, checked locally (a local `Error`, no request: split a longer text yourself). **`language`**: a tag
+  such as `fr` or `en-US`; by default the language of the instance's first administrator.
+- **The URL**: with a local provider, a LAN `http://<Gladys IP>:<port>/api/v1/tts/audio/<token>.<ext>` URL to a
+  clip kept 10 minutes in RAM (newer clips may evict it sooner); with Gladys Plus, a signed `https://` URL. Hand it
+  to the player right away, and check the player can reach it: the LAN for a local voice, the Internet for Gladys
+  Plus.
+- **One failure**: when the voice cannot speak — no provider running, the selected one stopped, Gladys Plus not
+  subscribed or over its quota — the call rejects with a **503** `GladysApiError` whose message is
+  `TTS_UNAVAILABLE`; the core logs the cause and the administrator sees it on the "Voice" card of the Artificial
+  Intelligence page. The core allows **10 requests per minute** per integration (`429` beyond).
+- **The call waits up to 35 s** (a local engine may take the core's whole 30 s synthesis deadline), even when the
+  `requestTimeout` of the client is shorter.
+
+Requires a Gladys with this route (check the `gladys_version` range of your manifest).
 
 ### House location
 
@@ -1718,13 +1758,14 @@ test('publishes the temperature on poll', async () => {
   `config`, `houses`, `containers`, `contacts`, `webhooks`, `status`, `scanResults` (raw results per scan type,
   e.g. `{ mdns: [...] }`), `linkedUser` (`linkContact` accepts any code), `calendarAccounts`, `calendars` and
   `calendarEvents` (calendar integrations), `energyCalendars` (the declared tariff calendars, key → entries),
-  `energyContracts` and `energyConsumption` (the consumption states published after the fact, feature → states).
-  The `selector` (default `'test-integration'`) and the SDK `logger` (default silent) are options too.
+  `energyContracts` and `energyConsumption` (the consumption states published after the fact, feature → states),
+  `ttsAvailable` (default `true`: `getSpeechUrl` resolves `http://fake-gladys.invalid/api/v1/tts/audio/fake-<n>.mp3`;
+  `false`: it rejects with the core's `503` `TTS_UNAVAILABLE`). The `selector` (default `'test-integration'`) and the SDK `logger` (default silent) are options too.
 - **What Gladys received**, as the JSON bodies Gladys would get: `states` and `lastState(featureExternalId)`,
   `discoveredDevices` (the last published list), `connectionStatuses` / `connectionStatus`, `transports`,
   `cameraImages`, `sceneEvents`, `messages`, `scans`, `widgetRefreshes`, `weatherRefreshes`, `publishedCalendars`,
   `publishedCalendarEvents`, `deletedCalendars`, `publishedEnergyCalendars`, `publishedEnergyConsumption`,
-  `energyRecalculations`; every host API request in `requests` (`{ method, path, query?, body, status }`) and
+  `energyRecalculations`, `speeches` (every text a clip was handed out for: `{ text, language? }`); every host API request in `requests` (`{ method, path, query?, body, status }`) and
   every WebSocket message (acks, nudges) in `wsMessages`.
 - **The host API checks** that most often bite: the discovered devices (external_id prefix, known
   category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`, a boolean `should_poll`, and on every

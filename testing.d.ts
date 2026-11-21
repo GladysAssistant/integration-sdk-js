@@ -91,6 +91,11 @@ export interface FakeGladysOptions {
    * interval or the start of a day (the fake Gladys runs in UTC).
    */
   energyConsumption?: Record<string, FakeEnergyConsumptionState[]>;
+  /**
+   * Whether the instance's voice can speak (getSpeechUrl). Default: true, each call answering
+   * `http://fake-gladys.invalid/api/v1/tts/audio/fake-<n>.mp3`; false: the core's 503 `TTS_UNAVAILABLE`.
+   */
+  ttsAvailable?: boolean;
   /** GET /status response. */
   status?: IntegrationStatus;
   /** SDK logger. Default: silent. */
@@ -161,6 +166,8 @@ export interface FakeGladys {
    * its end, a day at its start — in UTC).
    */
   energyConsumption: Record<string, FakeEnergyConsumptionState[]>;
+  /** Whether the instance's voice can speak; false: getSpeechUrl rejects with the core's 503 `TTS_UNAVAILABLE`. */
+  ttsAvailable: boolean;
   status: IntegrationStatus;
 
   /** Every host API request received, in order — rejected ones included (status 400). */
@@ -185,6 +192,8 @@ export interface FakeGladys {
   }[];
   /** Every published camera image. */
   readonly cameraImages: { device_external_id: string; image: string }[];
+  /** Every text a clip was handed out for (getSpeechUrl), wire format — the 503 ones excluded. */
+  readonly speeches: { text: string; language?: string }[];
   /** Every fired scene event. */
   readonly sceneEvents: { key: string; data: Record<string, unknown> }[];
   /** Every message published from the channel (publishMessage). */
