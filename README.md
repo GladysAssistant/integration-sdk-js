@@ -1760,13 +1760,15 @@ test('publishes the temperature on poll', async () => {
   `calendarEvents` (calendar integrations), `energyCalendars` (the declared tariff calendars, key → entries),
   `energyContracts` and `energyConsumption` (the consumption states published after the fact, feature → states),
   `ttsAvailable` (default `true`: `getSpeechUrl` resolves `http://fake-gladys.invalid/api/v1/tts/audio/fake-<n>.mp3`;
-  `false`: it rejects with the core's `503` `TTS_UNAVAILABLE`). The `selector` (default `'test-integration'`) and the SDK `logger` (default silent) are options too.
+  `false`: it rejects with the core's `503` `TTS_UNAVAILABLE`). The `selector` (default `'test-integration'`) and
+  the SDK `logger` (default silent) are options too.
 - **What Gladys received**, as the JSON bodies Gladys would get: `states` and `lastState(featureExternalId)`,
   `discoveredDevices` (the last published list), `connectionStatuses` / `connectionStatus`, `transports`,
   `cameraImages`, `sceneEvents`, `messages`, `scans`, `widgetRefreshes`, `weatherRefreshes`, `publishedCalendars`,
   `publishedCalendarEvents`, `deletedCalendars`, `publishedEnergyCalendars`, `publishedEnergyConsumption`,
-  `energyRecalculations`, `speeches` (every text a clip was handed out for: `{ text, language? }`); every host API request in `requests` (`{ method, path, query?, body, status }`) and
-  every WebSocket message (acks, nudges) in `wsMessages`.
+  `energyRecalculations`, `speeches` (every text a clip was handed out for: `{ text, language? }`); every host API
+  request in `requests` (`{ method, path, query?, body, status }`) and every WebSocket message (acks, nudges) in
+  `wsMessages`.
 - **The host API checks** that most often bite: the discovered devices (external_id prefix, known
   category/type/unit, `poll_frequency` among `DEVICE_POLL_FREQUENCIES`, a boolean `should_poll`, and on every
   feature a non-empty `name`, booleans `read_only` and `has_feedback`, finite numbers `min` and `max` — see
